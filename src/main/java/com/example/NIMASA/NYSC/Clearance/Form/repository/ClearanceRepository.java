@@ -1,0 +1,28 @@
+package com.example.NIMASA.NYSC.Clearance.Form.repository;
+
+import com.example.NIMASA.NYSC.Clearance.Form.FormStatus;
+import com.example.NIMASA.NYSC.Clearance.Form.model.ClearanceForm;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Repository
+public interface ClearanceRepository extends JpaRepository<ClearanceForm, Long> {
+
+    List<ClearanceForm> findByStatus(FormStatus status);
+
+    List<ClearanceForm> findByCorpsNameContainingIgnoreCase(String corpsName);
+
+    List<ClearanceForm> findBySupervisorName(String supervisorName);
+
+    List<ClearanceForm> findByHodName(String hodName);
+
+    List<ClearanceForm> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    long countByStatus(FormStatus status);
+
+    long countByStatusAndCreatedAtAfter(FormStatus status, LocalDateTime date);
+}
+
