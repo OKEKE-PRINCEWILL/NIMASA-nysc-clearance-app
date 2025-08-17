@@ -205,10 +205,29 @@ public class ClearanceController {
     private final ClearanceFormService clearanceFormService;
     private final ApprovedSupervisorsRepo approvedSupervisorsRepo;
     private final ApprovedHodRepo approvedHodRepo;
+
     @PostMapping
-    public ResponseEntity<ClearanceForm>createForm(@RequestBody ClearanceForm form){
-        return ResponseEntity.ok(clearanceFormService.createForm(form));
+    public ResponseEntity<CorpsMemberFormResponseDTO> createForm(@Valid @RequestBody CorpsMemberFormRequestDTO requestDTO) {
+        // Create the form entity
+        ClearanceForm form = new ClearanceForm();
+        form.setCorpsName(requestDTO.getCorpsName());
+        form.setStateCode(requestDTO.getStateCode());
+        form.setDepartment(requestDTO.getDepartment());
+
+        // Save the form
+        ClearanceForm savedForm = clearanceFormService.createForm(form);
+
+        // Create response DTO with only the required fields
+        CorpsMemberFormResponseDTO response = new CorpsMemberFormResponseDTO(
+                savedForm.getId(),
+                savedForm.getCorpsName(),
+                savedForm.getStateCode(),
+                savedForm.getDepartment()
+        );
+
+        return ResponseEntity.ok(response);
     }
+
 
     @GetMapping("/{id}")
     public ResponseEntity<ClearanceForm> getFormById(@PathVariable Long id){
@@ -223,7 +242,7 @@ public class ClearanceController {
     }
 
     @GetMapping("/search/corps")
-    public ResponseEntity<List<ClearanceForm>> getCorpsMember(@RequestBody CorpsMemberDTO corpsMemberDTO){
+    public ResponseEntity<List<ClearanceForm>> getCorpsMember(@RequestBody CorpsMemberFormRequestDTO corpsMemberDTO){
         return  ResponseEntity.ok(clearanceFormService.getCorpMember(corpsMemberDTO.getCorpsName()));
     }
 
@@ -315,7 +334,7 @@ public class ClearanceController {
     @PostMapping("/{id}/approve")
     public ResponseEntity<ClearanceForm> approveForm(
             @PathVariable Long id,
-            @RequestBody AdminApprovalAndRejectDTO approval) {
+            @Valid @RequestBody AdminApprovalAndRejectDTO approval) {
 
         return ResponseEntity.ok(
                 clearanceFormService.approveForm(
@@ -327,7 +346,7 @@ public class ClearanceController {
     @PostMapping("/{id}/reject")
     public ResponseEntity<ClearanceForm> rejectForm(
             @PathVariable Long id,
-            @RequestBody AdminApprovalAndRejectDTO reject) {
+            @Valid @RequestBody AdminApprovalAndRejectDTO reject) {
 
         return ResponseEntity.ok(
                 clearanceFormService.rejectForm(

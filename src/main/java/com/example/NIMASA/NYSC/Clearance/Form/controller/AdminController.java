@@ -5,6 +5,7 @@ import com.example.NIMASA.NYSC.Clearance.Form.DTOs.LoginRequestDTO;
 import com.example.NIMASA.NYSC.Clearance.Form.DTOs.RegisterRequestDto;
 import com.example.NIMASA.NYSC.Clearance.Form.SecurityService.AdminService;
 import com.example.NIMASA.NYSC.Clearance.Form.securityModel.Admin;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @RequestMapping("/api/auth")
 @Validated
+@SecurityRequirement(name = "Bearer Authentication")
 public class AdminController {
     private final AdminService adminService;
 
