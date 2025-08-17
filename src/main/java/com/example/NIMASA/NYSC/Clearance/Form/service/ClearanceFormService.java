@@ -18,6 +18,24 @@ public class ClearanceFormService {
     private final ClearanceRepository clearanceRepo;
     private final ApprovedSupervisorsRepo approvedSupervisorsRepo;
     private final ApprovedHodRepo approvedHodRepo;
+
+    private String generateInitials(String fullName){
+        if(fullName== null || fullName.trim().isEmpty()){
+            return "";
+        }
+        String[] nameParts= fullName.trim().split("\\s+");
+        StringBuilder initials= new StringBuilder();
+
+        for (int i = 0; i < nameParts.length; i++) {
+            if (!nameParts[i].isEmpty()) {
+                initials.append(nameParts[i].charAt(0));
+                if (i < nameParts.length - 1) {
+                    initials.append(".");
+                }
+            }
+        }
+        return initials.toString().toUpperCase();
+    }
 //    // Add this method to your ClearanceFormService:
 //
 //    public ClearanceForm submitCorpsMemberForm(String corpsName, String stateCode, String department) {
@@ -101,6 +119,7 @@ public class ClearanceFormService {
         form.setConductRemark(conductRemark);
         form.setSupervisorDate(LocalDateTime.now().toLocalDate());
         form.setUpdatedAt(LocalDateTime.now().toLocalDate());
+        form.setSupervisorSignaturePath(generateInitials(supervisorName));
         form.setStatus(FormStatus.PENDING_HOD);
 
         return clearanceRepo.save(form);
@@ -123,6 +142,7 @@ public class ClearanceFormService {
         form.setHodRemark(hodRemark);
         form.setHodDate(LocalDateTime.now().toLocalDate());
         form.setUpdatedAt(LocalDateTime.now().toLocalDate());
+        form.setHodSignaturePath(generateInitials(hodName));
         form.setStatus(FormStatus.PENDING_ADMIN);
 
         return clearanceRepo.save(form);
@@ -165,9 +185,22 @@ public class ClearanceFormService {
         return clearanceRepo.save(form);
     }
 
+    public void deleteForm(Long formId, String adminName) {
+        Optional<ClearanceForm> formOpt = clearanceRepo.findById(formId);
+        if (formOpt.isEmpty()) {
+            throw new RuntimeException("Form not found with ID: " + formId);
+        }
 
+        ClearanceForm form = formOpt.get();
 
+        // Optional: Log the deletion for audit purposes
+        System.out.println("Form with ID " + formId + " (Corps Member: " + form.getCorpsName() +
+                ") deleted by admin: " + adminName + " at " + LocalDateTime.now());
 
+        clearanceRepo.deleteById(formId);
+    }
 
-
-}
+    public boolean formExists(Long formId) {
+        return clearanceRepo.existsById(formId);
+    }
+    }

@@ -3,6 +3,7 @@ package com.example.NIMASA.NYSC.Clearance.Form.Security;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -27,9 +28,34 @@ public class SecurityConfig {
         http
                 .csrf(customizer -> customizer.disable())
                 .authorizeHttpRequests(request ->
-                        request.requestMatchers("/api/auth/**").permitAll()
-                                .requestMatchers("/api/clearance-forms/**").authenticated()
-                                .anyRequest().authenticated())
+                        request
+                                // Authentication endpoints - no token required
+                                .requestMatchers("/api/auth/**").permitAll()
+
+                                // Public clearance form endpoints - no token required
+                                .requestMatchers(HttpMethod.GET, "/api/clearance-forms").permitAll()
+                                .requestMatchers(HttpMethod.GET, "/api/clearance-forms/*").permitAll()
+                                .requestMatchers(HttpMethod.GET, "/api/clearance-forms/search/**").permitAll()
+                                .requestMatchers(HttpMethod.GET, "/api/clearance-forms/status/**").permitAll()
+                                .requestMatchers(HttpMethod.GET, "/api/clearance-forms/count/**").permitAll()
+                                .requestMatchers(HttpMethod.POST, "/api/clearance-forms").permitAll()
+
+                                // Supervisor and HOD review endpoints - no token required
+                                .requestMatchers(HttpMethod.POST, "/api/clearance-forms/*/supervisor-review").permitAll()
+                                .requestMatchers(HttpMethod.POST, "/api/clearance-forms/*/hod-review").permitAll()
+                                .requestMatchers(HttpMethod.GET, "/api/clearance-forms/supervisor/pending").permitAll()
+                                .requestMatchers(HttpMethod.GET, "/api/clearance-forms/hod/pending").permitAll()
+                                .requestMatchers(HttpMethod.GET, "/api/clearance-forms/*/exists").permitAll()
+
+                                // Admin-only endpoints - token required
+                                .requestMatchers(HttpMethod.POST, "/api/clearance-forms/*/approve").authenticated()
+                                .requestMatchers(HttpMethod.POST, "/api/clearance-forms/*/reject").authenticated()
+                                .requestMatchers(HttpMethod.DELETE, "/api/clearance-forms/**").authenticated()
+                                .requestMatchers(HttpMethod.GET, "/api/clearance-forms/admin/pending").authenticated()
+                                .requestMatchers(HttpMethod.POST, "/api/clearance-forms/admin/**").authenticated()
+
+                                // Any other request - allow without authentication
+                                .anyRequest().permitAll())
                 //.httpBasic(Customizer.withDefaults())
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(
@@ -57,4 +83,3 @@ public class SecurityConfig {
         return config.getAuthenticationManager();
     }
 }
-

@@ -1,8 +1,9 @@
-package com.example.NIMASA.NYSC.Clearance.Form.SecurityService;
+package com.example.NIMASA.NYSC.Clearance.Form.controller;
 
 import com.example.NIMASA.NYSC.Clearance.Form.DTOs.ChangePasswordDTO;
 import com.example.NIMASA.NYSC.Clearance.Form.DTOs.LoginRequestDTO;
 import com.example.NIMASA.NYSC.Clearance.Form.DTOs.RegisterRequestDto;
+import com.example.NIMASA.NYSC.Clearance.Form.SecurityService.AdminService;
 import com.example.NIMASA.NYSC.Clearance.Form.securityModel.Admin;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/auth")
 @Validated
 public class AdminController {
-    private final  AdminService adminService;
+    private final AdminService adminService;
 
     @PostMapping("/register")
     public ResponseEntity<?> register (@Valid @RequestBody RegisterRequestDto requestDto){

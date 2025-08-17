@@ -3,14 +3,13 @@ package com.example.NIMASA.NYSC.Clearance.Form.DTOs;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.springframework.web.multipart.MultipartFile;
-
+import org.hibernate.validator.constraints.NotBlank;
 @AllArgsConstructor
 @NoArgsConstructor
 @Data
+public class DeleteFormDTO {
+    @NotBlank(message = "Admin name is required")
+    private String adminName;
 
-public class SubmitHodReviewDTO {
-    private String hodName;
-    private String hodRemark;
 
 }
