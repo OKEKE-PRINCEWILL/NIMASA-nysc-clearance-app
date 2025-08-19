@@ -1,4 +1,4 @@
-package com.example.NIMASA.NYSC.Clearance.Form;
+package com.example.NIMASA.NYSC.Clearance.Form.config;
 
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.OpenAPIDefinition;

@@ -1,6 +1,7 @@
-package com.example.NIMASA.NYSC.Clearance.Form.Security;
+package com.example.NIMASA.NYSC.Clearance.Form.config;
 
 import com.example.NIMASA.NYSC.Clearance.Form.SecurityService.CustomUserDetailsService;
+import com.example.NIMASA.NYSC.Clearance.Form.SecurityService.JwtService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

@@ -1,6 +1,5 @@
 package com.example.NIMASA.NYSC.Clearance.Form.SecurityService;
 
-import com.example.NIMASA.NYSC.Clearance.Form.Security.JwtService;
 import com.example.NIMASA.NYSC.Clearance.Form.repository.AdminRepo;
 import com.example.NIMASA.NYSC.Clearance.Form.securityModel.Admin;
 import lombok.RequiredArgsConstructor;

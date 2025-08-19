@@ -1,4 +1,4 @@
-package com.example.NIMASA.NYSC.Clearance.Form.Security;
+package com.example.NIMASA.NYSC.Clearance.Form.SecurityService;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;

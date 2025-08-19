@@ -178,13 +178,13 @@
 //}
 //
 package com.example.NIMASA.NYSC.Clearance.Form.controller;
-import com.example.NIMASA.NYSC.Clearance.Form.ResponseFilterService;
+import com.example.NIMASA.NYSC.Clearance.Form.service.ResponseFilterService;
 import com.example.NIMASA.NYSC.Clearance.Form.repository.ApprovedHodRepo;
 import com.example.NIMASA.NYSC.Clearance.Form.model.ApprovedSupervisors;
 import com.example.NIMASA.NYSC.Clearance.Form.service.ClearanceFormService;
 import com.example.NIMASA.NYSC.Clearance.Form.DTOs.*;
 import com.example.NIMASA.NYSC.Clearance.Form.FormStatus;
-import com.example.NIMASA.NYSC.Clearance.Form.UserRole;
+import com.example.NIMASA.NYSC.Clearance.Form.Enums.UserRole;
 import com.example.NIMASA.NYSC.Clearance.Form.model.ApprovedHod;
 import com.example.NIMASA.NYSC.Clearance.Form.repository.ApprovedSupervisorsRepo;
 import com.example.NIMASA.NYSC.Clearance.Form.model.ClearanceForm;

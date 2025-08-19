@@ -1,9 +1,9 @@
-package com.example.NIMASA.NYSC.Clearance.Form;
+package com.example.NIMASA.NYSC.Clearance.Form.service;
 
 
 
 import com.example.NIMASA.NYSC.Clearance.Form.DTOs.FilteredClearanceFormResponseDTO;
-import com.example.NIMASA.NYSC.Clearance.Form.UserRole;
+import com.example.NIMASA.NYSC.Clearance.Form.Enums.UserRole;
 import com.example.NIMASA.NYSC.Clearance.Form.model.ClearanceForm;
 import org.springframework.stereotype.Service;
 import java.util.List;

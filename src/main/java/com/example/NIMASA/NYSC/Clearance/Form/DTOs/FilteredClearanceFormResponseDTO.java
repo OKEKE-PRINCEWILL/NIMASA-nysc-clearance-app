@@ -1,17 +1,12 @@
 package com.example.NIMASA.NYSC.Clearance.Form.DTOs;
 
 import com.example.NIMASA.NYSC.Clearance.Form.FormStatus;
-import com.example.NIMASA.NYSC.Clearance.Form.UserRole;
-import com.example.NIMASA.NYSC.Clearance.Form.model.ClearanceForm;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Data
 @AllArgsConstructor
