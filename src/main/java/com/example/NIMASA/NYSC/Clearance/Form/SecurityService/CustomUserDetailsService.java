@@ -22,11 +22,7 @@ public class CustomUserDetailsService implements UserDetailsService {
 
    @Override
  public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-//        // First check if it's an admin
-//        Optional<Admin> adminOpt = adminRepo.findByUsernameAndActive(username, true);
-//        if (adminOpt.isPresent()) {
-//            return new AdminPrincipal(adminOpt.get());
-//        }
+
 
         // Then check if it's an employee (using name as username)
         Optional<Employee> employeeOpt = employeeRepository.findByNameAndActive(username, true);
