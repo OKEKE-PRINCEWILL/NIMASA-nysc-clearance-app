@@ -15,7 +15,7 @@ public class ResponseFilterService {
     public FilteredClearanceFormResponseDTO filterFormByRole(ClearanceForm form, UserRole userRole) {
         FilteredClearanceFormResponseDTO dto = new FilteredClearanceFormResponseDTO();
 
-        // Basic fields visible to all roles
+
         dto.setId(form.getId());
         dto.setCorpsName(form.getCorpsName());
         dto.setStateCode(form.getStateCode());
@@ -24,7 +24,7 @@ public class ResponseFilterService {
         dto.setCreatedAt(form.getCreatedAt());
         dto.setUpdatedAt(form.getUpdatedAt());
 
-        // Supervisor fields - visible to SUPERVISOR, HOD, ADMIN
+        // Supervisor fields visible to SUPERVISOR, HOD, ADMIN
         if (userRole == UserRole.SUPERVISOR || userRole == UserRole.ADMIN) {
             dto.setDayAbsent(form.getDayAbsent());
             dto.setConductRemark(form.getConductRemark());
@@ -33,7 +33,7 @@ public class ResponseFilterService {
             dto.setSupervisorDate(form.getSupervisorDate());
         }
 
-        // HOD fields - visible to HOD, ADMIN
+        // HOD fields visible to HOD, ADMIN
         if (userRole == UserRole.HOD || userRole == UserRole.ADMIN) {
             dto.setHodRemark(form.getHodRemark());
             dto.setHodName(form.getHodName());
@@ -41,7 +41,7 @@ public class ResponseFilterService {
             dto.setHodDate(form.getHodDate());
         }
 
-        // Admin fields - visible to ADMIN only
+        // Admin fields visible to ADMIN only
         if (userRole == UserRole.ADMIN) {
             dto.setAdminName(form.getAdminName());
             dto.setApprovalDate(form.getApprovalDate());

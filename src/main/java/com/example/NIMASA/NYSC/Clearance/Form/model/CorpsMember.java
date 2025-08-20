@@ -1,7 +1,7 @@
-package com.example.NIMASA.NYSC.Clearance.Form.securityModel;
+package com.example.NIMASA.NYSC.Clearance.Form.model;
+
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -12,32 +12,22 @@ import java.time.LocalDate;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "admins")
-public class Admin {
+@Table(name = "corps_members")
+public class CorpsMember {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true, nullable = false)
-    private String username;
+    @Column(nullable = false)
+    private String name;
 
     @Column(nullable = false)
-    private String password;
-
-    @Column(nullable = false)
-    private String fullName;
+    private String department;
 
     @Column(nullable = false)
     private boolean active = true;
 
     @Column(nullable = false)
-    private String role = "ADMIN";
-
-    @Column(nullable = false)
-    private LocalDate lastPasswordChange= LocalDate.now();
-
-
+    private LocalDate createdAt = LocalDate.now();
 }
-
-

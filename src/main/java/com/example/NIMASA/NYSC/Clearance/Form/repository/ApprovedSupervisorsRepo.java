@@ -8,7 +8,7 @@ import java.util.Optional;
 
 @Repository
 public interface ApprovedSupervisorsRepo extends JpaRepository<ApprovedSupervisors,Long> {
-    Optional<ApprovedSupervisors> findByNameAndActiveTrue(String name);
+//    Optional<ApprovedSupervisors> findByNameAndActiveTrue(String name);
 
     boolean existsByNameAndActiveTrue(String name);
 }

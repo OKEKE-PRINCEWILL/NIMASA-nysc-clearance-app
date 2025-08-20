@@ -18,9 +18,6 @@ public class ApprovedHod {
     @Column(nullable = false, unique = true)
     private String name;
 
-//    @Column(nullable = true)
-//    private String department;
-
     @Column(nullable = false)
     private Boolean active = true;
 

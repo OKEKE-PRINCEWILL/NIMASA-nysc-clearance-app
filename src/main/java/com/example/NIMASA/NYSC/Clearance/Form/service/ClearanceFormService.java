@@ -19,6 +19,7 @@ public class ClearanceFormService {
     private final ApprovedSupervisorsRepo approvedSupervisorsRepo;
     private final ApprovedHodRepo approvedHodRepo;
 
+//  this method is used to do the signature for the supervisor and Hod
     private String generateInitials(String fullName){
         if(fullName== null || fullName.trim().isEmpty()){
             return "";
@@ -36,24 +37,7 @@ public class ClearanceFormService {
         }
         return initials.toString().toUpperCase();
     }
-//    // Add this method to your ClearanceFormService:
-//
-//    public ClearanceForm submitCorpsMemberForm(String corpsName, String stateCode, String department) {
-//        ClearanceForm form = new ClearanceForm();
-//
-//        // Set corps member data
-//        form.setCorpsName(corpsName);
-//        form.setStateCode(stateCode);
-//        form.setDepartment(department);
-//
-//        // Set initial status and timestamps
-//        form.setStatus(FormStatus.PENDING_SUPERVISOR);
-//        form.setCreatedAt(LocalDateTime.now());
-//        form.setUpdatedAt(LocalDateTime.now());
-//
-//        return clearanceRepo.save(form);
-//    }
-
+// when this method is invoked it creates the form and this comes with the part meant for the CorpsMembers
     public ClearanceForm createForm(ClearanceForm form){
         form.setStatus(FormStatus.PENDING_SUPERVISOR);
         form.setCreatedAt(LocalDateTime.now().toLocalDate());
@@ -90,6 +74,7 @@ public class ClearanceFormService {
     public List<ClearanceForm> getFormBetweenDates(LocalDateTime start, LocalDateTime end){
         return clearanceRepo.findByCreatedAtBetween(start,end);
     }
+//  this method is used to check the number forms which each status like number of forms with PENDING_HOD
     public long countFormsByStatus(FormStatus status){
         return clearanceRepo.countByStatus(status);
     }
@@ -193,7 +178,7 @@ public class ClearanceFormService {
 
         ClearanceForm form = formOpt.get();
 
-        // Optional: Log the deletion for audit purposes
+
         System.out.println("Form with ID " + formId + " (Corps Member: " + form.getCorpsName() +
                 ") deleted by admin: " + adminName + " at " + LocalDateTime.now());
 

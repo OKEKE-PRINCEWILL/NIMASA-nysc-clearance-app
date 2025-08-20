@@ -20,7 +20,7 @@ public class ClearanceForm {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Corps Member fields - required
+
     @NotBlank(message = "Corps Member Name is required")
     @Column(nullable = false)
     private String corpsName;
@@ -33,9 +33,9 @@ public class ClearanceForm {
     @Column(nullable = false)
     private String department;
 
-    // Supervisor fields - optional initially
+
     @Column(nullable = true)
-    private Integer dayAbsent;  // Changed from dayAbsent and made Integer
+    private Integer dayAbsent;
 
     @Column(length = 1000, nullable = true)
     private String conductRemark;
@@ -49,7 +49,7 @@ public class ClearanceForm {
     @Column(nullable = true)
     private LocalDate supervisorDate;
 
-    // HOD fields - optional initially
+
     @Column(length = 1000, nullable = true)
     private String hodRemark;
 
@@ -73,7 +73,7 @@ public class ClearanceForm {
     @Column(nullable = false)
     private LocalDate updatedAt;
 
-    // Admin fields - optional initially
+
     @Column(nullable = true)
     private String adminName;
 

@@ -8,7 +8,7 @@ import java.util.Optional;
 
 @Repository
 public interface ApprovedHodRepo extends JpaRepository<ApprovedHod, Long> {
-    Optional<ApprovedHod> findByNameAndActiveTrue(String name);
+    //Optional<ApprovedHod> findByNameAndActiveTrue(String name);
 
     boolean existsByNameAndActiveTrue(String name);
 }

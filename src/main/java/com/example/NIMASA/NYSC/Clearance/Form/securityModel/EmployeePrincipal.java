@@ -1,5 +1,6 @@
 package com.example.NIMASA.NYSC.Clearance.Form.securityModel;
 
+import com.example.NIMASA.NYSC.Clearance.Form.model.Employee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -9,21 +10,22 @@ import java.util.Collection;
 import java.util.Collections;
 
 @RequiredArgsConstructor
-public class AdminPrincipal implements UserDetails {
-    private final Admin admin;
+public class EmployeePrincipal implements UserDetails {
+    private final Employee employee;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return Collections.singleton((new SimpleGrantedAuthority("ROLE_ADMIN")));
+        return Collections.singleton(new SimpleGrantedAuthority("ROLE_" + employee.getRole().name()));
     }
 
     @Override
     public String getPassword() {
-        return admin.getPassword() ;
+        return employee.getPassword();
     }
 
     @Override
     public String getUsername() {
-        return admin.getUsername();
+        return employee.getName();
     }
 
     @Override
@@ -43,15 +45,18 @@ public class AdminPrincipal implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return admin.isActive();
+        return employee.isActive();
     }
 
-    public Admin getAdmin(){
-        return admin;
+    public Employee getEmployee() {
+        return employee;
     }
 
-    public String getFullName(){
-        return admin.getFullName();
+    public String getFullName() {
+        return employee.getName();
     }
 
+    public String getDepartment() {
+        return employee.getDepartment();
+    }
 }

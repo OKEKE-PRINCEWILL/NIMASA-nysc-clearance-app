@@ -22,16 +22,17 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
     private final UserDetailsService userDetailsService;
     private final JWTFilter jwtFilter;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(customizer -> customizer.disable())
                 .authorizeHttpRequests(request ->
                         request
-                                // Authentication endpoints - no token required
-                                .requestMatchers("/api/auth/**").permitAll()
 
-                                // Public clearance form endpoints - no token required
+                                .requestMatchers("/api/auth/**").permitAll()
+                                .requestMatchers("/api/unified-auth/login").permitAll()
+
                                 .requestMatchers(HttpMethod.GET, "/api/clearance-forms").permitAll()
                                 .requestMatchers(HttpMethod.GET, "/api/clearance-forms/*").permitAll()
                                 .requestMatchers(HttpMethod.GET, "/api/clearance-forms/search/**").permitAll()
@@ -39,41 +40,46 @@ public class SecurityConfig {
                                 .requestMatchers(HttpMethod.GET, "/api/clearance-forms/count/**").permitAll()
                                 .requestMatchers(HttpMethod.POST, "/api/clearance-forms").permitAll()
 
-                                // Supervisor and HOD review endpoints - no token required
+                                // Review endpoints - no token required (role-based access handled in service)
                                 .requestMatchers(HttpMethod.POST, "/api/clearance-forms/*/supervisor-review").permitAll()
                                 .requestMatchers(HttpMethod.POST, "/api/clearance-forms/*/hod-review").permitAll()
                                 .requestMatchers(HttpMethod.GET, "/api/clearance-forms/supervisor/pending").permitAll()
                                 .requestMatchers(HttpMethod.GET, "/api/clearance-forms/hod/pending").permitAll()
                                 .requestMatchers(HttpMethod.GET, "/api/clearance-forms/*/exists").permitAll()
 
-                                // Admin-only endpoints - token required
+                                // this is my Admin-only endpoints token will be required
                                 .requestMatchers(HttpMethod.POST, "/api/clearance-forms/*/approve").authenticated()
                                 .requestMatchers(HttpMethod.POST, "/api/clearance-forms/*/reject").authenticated()
                                 .requestMatchers(HttpMethod.DELETE, "/api/clearance-forms/**").authenticated()
                                 .requestMatchers(HttpMethod.GET, "/api/clearance-forms/admin/pending").authenticated()
                                 .requestMatchers(HttpMethod.POST, "/api/clearance-forms/admin/**").authenticated()
 
-                                // Any other request - allow without authentication
+                                // This is my Employee management endpoints token will be required
+                                .requestMatchers("/api/unified-auth/employee/**").authenticated()
+
+
+                                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+
+
                                 .anyRequest().permitAll())
-                //.httpBasic(Customizer.withDefaults())
                 .sessionManagement(session ->
-                        session.sessionCreationPolicy(
-                                SessionCreationPolicy.STATELESS))
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
-
         return http.build();
     }
+
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setPasswordEncoder(encoder()); //NoOpPasswordEncoder.getInstance());// new BCryptPasswordEncoder(12));
+        provider.setPasswordEncoder(encoder());
         provider.setUserDetailsService(userDetailsService);
         return provider;
     }
+
     @Bean
-    public BCryptPasswordEncoder encoder(){
+    public BCryptPasswordEncoder encoder() {
         return new BCryptPasswordEncoder(12);
     }
 
