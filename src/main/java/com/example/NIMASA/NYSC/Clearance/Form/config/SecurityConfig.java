@@ -15,6 +15,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
@@ -22,10 +23,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
     private final UserDetailsService userDetailsService;
     private final JWTFilter jwtFilter;
+    private final CorsConfigurationSource corsConfigurationSource; // Inject the CORS config
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                .cors(cors -> cors.configurationSource(corsConfigurationSource)) // Enable CORS
                 .csrf(customizer -> customizer.disable())
                 .authorizeHttpRequests(request ->
                         request
@@ -47,19 +50,21 @@ public class SecurityConfig {
                                 .requestMatchers(HttpMethod.GET, "/api/clearance-forms/hod/pending").permitAll()
                                 .requestMatchers(HttpMethod.GET, "/api/clearance-forms/*/exists").permitAll()
 
-                                // this is my Admin-only endpoints token will be required
+                                // Admin-only endpoints token will be required
                                 .requestMatchers(HttpMethod.POST, "/api/clearance-forms/*/approve").authenticated()
                                 .requestMatchers(HttpMethod.POST, "/api/clearance-forms/*/reject").authenticated()
                                 .requestMatchers(HttpMethod.DELETE, "/api/clearance-forms/**").authenticated()
                                 .requestMatchers(HttpMethod.GET, "/api/clearance-forms/admin/pending").authenticated()
                                 .requestMatchers(HttpMethod.POST, "/api/clearance-forms/admin/**").authenticated()
 
-                                // This is my Employee management endpoints token will be required
+                                // Employee management endpoints token will be required
                                 .requestMatchers("/api/unified-auth/employee/**").authenticated()
 
-
+                                // Swagger endpoints
                                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
 
+                                // Handle preflight OPTIONS requests
+                                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                                 .anyRequest().permitAll())
                 .sessionManagement(session ->

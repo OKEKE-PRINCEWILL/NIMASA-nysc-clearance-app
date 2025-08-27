@@ -46,7 +46,8 @@ public class UnifiedAuthService {
             String token = jwtService.generateToken(employee.getName());
 
             return createEmployeeSuccessResponse(employee, token);
-        } else {
+        }
+        else {
 
             return handleCorpsMember(request);
         }
@@ -138,7 +139,7 @@ public class UnifiedAuthService {
         return employeeRepository.save(employee);
     }
 
-    // my methid to change password
+    // my method to change password
     public void changeEmployeePassword(String name, String newPassword) {
         Employee employee = employeeRepository.findByName(name)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
