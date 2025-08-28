@@ -10,16 +10,23 @@ import com.example.NIMASA.NYSC.Clearance.Form.Enums.UserRole;
 import com.example.NIMASA.NYSC.Clearance.Form.model.ApprovedHod;
 import com.example.NIMASA.NYSC.Clearance.Form.repository.ApprovedSupervisorsRepo;
 import com.example.NIMASA.NYSC.Clearance.Form.model.ClearanceForm;
+import com.example.NIMASA.NYSC.Clearance.Form.service.SignatureService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/clearance-forms")
@@ -30,6 +37,7 @@ public class ClearanceFormController {
     private final ApprovedSupervisorsRepo approvedSupervisorsRepo;
     private final ApprovedHodRepo approvedHodRepo;
     private final ResponseFilterService responseFilterService;
+    private final SignatureService signatureService;
 
     //method to parse role parameter with default
     private UserRole parseUserRole(String roleParam) {
@@ -44,6 +52,24 @@ public class ClearanceFormController {
     }
 
     // Corps Member endpoints
+//    @PostMapping
+//    public ResponseEntity<CorpsMemberFormResponseDTO> createForm(@Valid @RequestBody CorpsMemberFormRequestDTO requestDTO) {
+//        ClearanceForm form = new ClearanceForm();
+//        form.setCorpsName(requestDTO.getCorpsName());
+//        form.setStateCode(requestDTO.getStateCode());
+//        form.setDepartment(requestDTO.getDepartment());
+//
+//        ClearanceForm savedForm = clearanceFormService.createForm(form);
+//
+//        CorpsMemberFormResponseDTO response = new CorpsMemberFormResponseDTO(
+//                savedForm.getId(),
+//                savedForm.getCorpsName(),
+//                savedForm.getStateCode(),
+//                savedForm.getDepartment()
+//        );
+//
+//        return ResponseEntity.ok(response);
+//    }
     @PostMapping
     public ResponseEntity<CorpsMemberFormResponseDTO> createForm(@Valid @RequestBody CorpsMemberFormRequestDTO requestDTO) {
         ClearanceForm form = new ClearanceForm();
@@ -63,7 +89,21 @@ public class ClearanceFormController {
         return ResponseEntity.ok(response);
     }
 
+
     // Role based form
+//    @GetMapping("/{id}")
+//    public ResponseEntity<FilteredClearanceFormResponseDTO> getFormById(
+//            @PathVariable Long id,
+//            @RequestParam(value = "role", required = false) String roleParam) {
+//
+//        return clearanceFormService.getFormById(id)
+//                .map(form -> {
+//                    UserRole userRole = parseUserRole(roleParam);
+//                    FilteredClearanceFormResponseDTO filteredForm = responseFilterService.filterFormByRole(form, userRole);
+//                    return ResponseEntity.ok(filteredForm);
+//                })
+//                .orElse(ResponseEntity.notFound().build());
+//    }
     @GetMapping("/{id}")
     public ResponseEntity<FilteredClearanceFormResponseDTO> getFormById(
             @PathVariable Long id,
@@ -114,24 +154,46 @@ public class ClearanceFormController {
         return ResponseEntity.ok(filteredForms);
     }
 
-    @PostMapping("/{id}/supervisor-review")
-    public ResponseEntity<FilteredClearanceFormResponseDTO> submitSupervisorReview(
-            @PathVariable Long id,
-            @RequestBody SubmitSupervisorReviewDTO request,
-            @RequestParam(value = "role", required = false) String roleParam) {
+//    @PostMapping("/{id}/supervisor-review")
+//    public ResponseEntity<FilteredClearanceFormResponseDTO> submitSupervisorReview(
+//            @PathVariable Long id,
+//            @RequestBody SubmitSupervisorReviewDTO request,
+//            @RequestParam(value = "role", required = false) String roleParam) {
+//
+//        ClearanceForm form = clearanceFormService.submitSupervisorReview(
+//                id,
+//                request.getSupervisorName(),
+//                request.getDaysAbsent(),
+//                request.getConductRemark()
+//        );
+//
+//        UserRole userRole = parseUserRole(roleParam);
+//        FilteredClearanceFormResponseDTO filteredForm = responseFilterService.filterFormByRole(form, userRole);
+//
+//        return ResponseEntity.ok(filteredForm);
+//    }
+@PostMapping("/{id}/supervisor-review")
+public ResponseEntity<FilteredClearanceFormResponseDTO> submitSupervisorReview(
+        @PathVariable Long id,
+        @RequestParam("supervisorName") String supervisorName,
+        @RequestParam("daysAbsent") Integer daysAbsent,
+        @RequestParam("conductRemark") String conductRemark,
+        @RequestParam(value = "signatureFile", required = false) MultipartFile signatureFile,
+        @RequestParam(value = "role", required = false) String roleParam) {
 
+    try {
         ClearanceForm form = clearanceFormService.submitSupervisorReview(
-                id,
-                request.getSupervisorName(),
-                request.getDaysAbsent(),
-                request.getConductRemark()
-        );
+                id, supervisorName, daysAbsent, conductRemark, signatureFile);
 
         UserRole userRole = parseUserRole(roleParam);
         FilteredClearanceFormResponseDTO filteredForm = responseFilterService.filterFormByRole(form, userRole);
 
         return ResponseEntity.ok(filteredForm);
+    } catch (RuntimeException e) {
+        return ResponseEntity.badRequest().build();
     }
+}
+
 
     // HOD endpoints
     @GetMapping("/hod/pending")
@@ -145,23 +207,44 @@ public class ClearanceFormController {
         return ResponseEntity.ok(filteredForms);
     }
 
-    @PostMapping("/{id}/hod-review")
-    public ResponseEntity<FilteredClearanceFormResponseDTO> submitHodReview(
-            @PathVariable Long id,
-            @RequestBody SubmitHodReviewDTO request,
-            @RequestParam(value = "role", required = false) String roleParam) {
+//    @PostMapping("/{id}/hod-review")
+//    public ResponseEntity<FilteredClearanceFormResponseDTO> submitHodReview(
+//            @PathVariable Long id,
+//            @RequestBody SubmitHodReviewDTO request,
+//            @RequestParam(value = "role", required = false) String roleParam) {
+//
+//        ClearanceForm form = clearanceFormService.submitHodReview(
+//                id,
+//                request.getHodName(),
+//                request.getHodRemark()
+//        );
+//
+//        UserRole userRole = parseUserRole(roleParam);
+//        FilteredClearanceFormResponseDTO filteredForm = responseFilterService.filterFormByRole(form, userRole);
+//
+//        return ResponseEntity.ok(filteredForm);
+//    }
+@PostMapping("/{id}/hod-review")
+public ResponseEntity<FilteredClearanceFormResponseDTO> submitHodReview(
+        @PathVariable Long id,
+        @RequestParam("hodName") String hodName,
+        @RequestParam("hodRemark") String hodRemark,
+        @RequestParam(value = "signatureFile", required = false) MultipartFile signatureFile,
+        @RequestParam(value = "role", required = false) String roleParam) {
 
+    try {
         ClearanceForm form = clearanceFormService.submitHodReview(
-                id,
-                request.getHodName(),
-                request.getHodRemark()
-        );
+                id, hodName, hodRemark, signatureFile);
 
         UserRole userRole = parseUserRole(roleParam);
         FilteredClearanceFormResponseDTO filteredForm = responseFilterService.filterFormByRole(form, userRole);
 
         return ResponseEntity.ok(filteredForm);
+    } catch (RuntimeException e) {
+        return ResponseEntity.badRequest().build();
     }
+}
+
 
     // Admin-related endpoints
     @GetMapping("/admin/pending")
@@ -298,5 +381,58 @@ public class ClearanceFormController {
         List<FilteredClearanceFormResponseDTO> filteredForms = responseFilterService.filterFormsByRole(forms, userRole);
 
         return ResponseEntity.ok(filteredForms);
+    }
+    // New endpoint for corps members to get printable approved forms
+    @GetMapping("/{id}/printable")
+    public ResponseEntity<PrintableFormResponseDTO> getPrintableForm(
+            @PathVariable Long id,
+            @RequestParam("corpsName") String corpsName) {
+
+        return clearanceFormService.getPrintableForm(id, corpsName)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+    @GetMapping("/signatures/{filename}")
+    public ResponseEntity<ByteArrayResource> getSignatureFile(@PathVariable String filename) {
+        try {
+            byte[] fileData = signatureService.getSignatureFile(filename);
+            ByteArrayResource resource = new ByteArrayResource(fileData);
+
+            // Determine content type based on file extension
+            String contentType = determineContentType(filename);
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                    .body(resource);
+        } catch (IOException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+    // New endpoint to get all approved forms for a specific corps member
+    @GetMapping("/approved/corps/{corpsName}")
+    public ResponseEntity<List<PrintableFormResponseDTO>> getApprovedFormsForCorpsMember(
+            @PathVariable String corpsName) {
+
+        List<ClearanceForm> approvedForms = clearanceFormService.getByStatus(FormStatus.APPROVED);
+        List<PrintableFormResponseDTO> corpsApprovedForms = approvedForms.stream()
+                .filter(form -> form.getCorpsName().equalsIgnoreCase(corpsName))
+                .map(form -> clearanceFormService.getPrintableForm(form.getId(), corpsName))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .toList();
+
+        return ResponseEntity.ok(corpsApprovedForms);
+    }
+    private String determineContentType(String filename) {
+        String extension = filename.substring(filename.lastIndexOf(".") + 1).toLowerCase();
+
+        return switch (extension) {
+            case "png" -> "image/png";
+            case "jpg", "jpeg" -> "image/jpeg";
+            case "gif" -> "image/gif";
+            case "pdf" -> "application/pdf";
+            default -> "application/octet-stream"; // fallback for unknown file types
+        };
     }
 }
