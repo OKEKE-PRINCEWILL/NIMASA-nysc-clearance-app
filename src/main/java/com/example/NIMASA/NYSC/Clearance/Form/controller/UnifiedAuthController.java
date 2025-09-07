@@ -102,6 +102,7 @@ import com.example.NIMASA.NYSC.Clearance.Form.model.Employee;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.Cookie;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -182,5 +183,19 @@ public class UnifiedAuthController {
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body("Failed to create initial admin: " + e.getMessage());
         }
+    }
+
+    @PostMapping("/logout")
+    @Operation(summary = "Logout user by clearing cookie")
+    public ResponseEntity<?> logout(HttpServletResponse response) {
+        // Clear the auth cookie
+        Cookie tokenCookie = new Cookie("authToken", "");
+        tokenCookie.setHttpOnly(true);
+        tokenCookie.setSecure(false); // Set to true in production with HTTPS
+        tokenCookie.setPath("/");
+        tokenCookie.setMaxAge(0); // Expire immediately
+        response.addCookie(tokenCookie);
+
+        return ResponseEntity.ok("Logged out successfully");
     }
 }
