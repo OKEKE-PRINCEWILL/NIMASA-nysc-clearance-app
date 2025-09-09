@@ -51,25 +51,7 @@ public class ClearanceFormController {
         }
     }
 
-    // Corps Member endpoints
-//    @PostMapping
-//    public ResponseEntity<CorpsMemberFormResponseDTO> createForm(@Valid @RequestBody CorpsMemberFormRequestDTO requestDTO) {
-//        ClearanceForm form = new ClearanceForm();
-//        form.setCorpsName(requestDTO.getCorpsName());
-//        form.setStateCode(requestDTO.getStateCode());
-//        form.setDepartment(requestDTO.getDepartment());
-//
-//        ClearanceForm savedForm = clearanceFormService.createForm(form);
-//
-//        CorpsMemberFormResponseDTO response = new CorpsMemberFormResponseDTO(
-//                savedForm.getId(),
-//                savedForm.getCorpsName(),
-//                savedForm.getStateCode(),
-//                savedForm.getDepartment()
-//        );
-//
-//        return ResponseEntity.ok(response);
-//    }
+
     @PostMapping
     public ResponseEntity<CorpsMemberFormResponseDTO> createForm(@Valid @RequestBody CorpsMemberFormRequestDTO requestDTO) {
         ClearanceForm form = new ClearanceForm();
@@ -90,20 +72,7 @@ public class ClearanceFormController {
     }
 
 
-    // Role based form
-//    @GetMapping("/{id}")
-//    public ResponseEntity<FilteredClearanceFormResponseDTO> getFormById(
-//            @PathVariable Long id,
-//            @RequestParam(value = "role", required = false) String roleParam) {
-//
-//        return clearanceFormService.getFormById(id)
-//                .map(form -> {
-//                    UserRole userRole = parseUserRole(roleParam);
-//                    FilteredClearanceFormResponseDTO filteredForm = responseFilterService.filterFormByRole(form, userRole);
-//                    return ResponseEntity.ok(filteredForm);
-//                })
-//                .orElse(ResponseEntity.notFound().build());
-//    }
+
     @GetMapping("/{id}")
     public ResponseEntity<FilteredClearanceFormResponseDTO> getFormById(
             @PathVariable Long id,
@@ -154,24 +123,7 @@ public class ClearanceFormController {
         return ResponseEntity.ok(filteredForms);
     }
 
-//    @PostMapping("/{id}/supervisor-review")
-//    public ResponseEntity<FilteredClearanceFormResponseDTO> submitSupervisorReview(
-//            @PathVariable Long id,
-//            @RequestBody SubmitSupervisorReviewDTO request,
-//            @RequestParam(value = "role", required = false) String roleParam) {
-//
-//        ClearanceForm form = clearanceFormService.submitSupervisorReview(
-//                id,
-//                request.getSupervisorName(),
-//                request.getDaysAbsent(),
-//                request.getConductRemark()
-//        );
-//
-//        UserRole userRole = parseUserRole(roleParam);
-//        FilteredClearanceFormResponseDTO filteredForm = responseFilterService.filterFormByRole(form, userRole);
-//
-//        return ResponseEntity.ok(filteredForm);
-//    }
+
 @PostMapping("/{id}/supervisor-review")
 public ResponseEntity<FilteredClearanceFormResponseDTO> submitSupervisorReview(
         @PathVariable Long id,
@@ -207,23 +159,7 @@ public ResponseEntity<FilteredClearanceFormResponseDTO> submitSupervisorReview(
         return ResponseEntity.ok(filteredForms);
     }
 
-//    @PostMapping("/{id}/hod-review")
-//    public ResponseEntity<FilteredClearanceFormResponseDTO> submitHodReview(
-//            @PathVariable Long id,
-//            @RequestBody SubmitHodReviewDTO request,
-//            @RequestParam(value = "role", required = false) String roleParam) {
-//
-//        ClearanceForm form = clearanceFormService.submitHodReview(
-//                id,
-//                request.getHodName(),
-//                request.getHodRemark()
-//        );
-//
-//        UserRole userRole = parseUserRole(roleParam);
-//        FilteredClearanceFormResponseDTO filteredForm = responseFilterService.filterFormByRole(form, userRole);
-//
-//        return ResponseEntity.ok(filteredForm);
-//    }
+
 @PostMapping("/{id}/hod-review")
 public ResponseEntity<FilteredClearanceFormResponseDTO> submitHodReview(
         @PathVariable Long id,
