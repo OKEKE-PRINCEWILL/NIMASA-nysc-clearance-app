@@ -93,6 +93,7 @@
 //}
 package com.example.NIMASA.NYSC.Clearance.Form.controller;
 
+import com.example.NIMASA.NYSC.Clearance.Form.DTOs.AddEmployeeDTO;
 import com.example.NIMASA.NYSC.Clearance.Form.DTOs.AuthRequestDTO;
 import com.example.NIMASA.NYSC.Clearance.Form.DTOs.AuthResponseDTO;
 import com.example.NIMASA.NYSC.Clearance.Form.DTOs.ChangePasswordDTO;
@@ -133,20 +134,22 @@ public class UnifiedAuthController {
     @PostMapping("/employee/add")
     @Operation(summary = "Add new employee (Admin only)")
     @SecurityRequirement(name = "Bearer Authentication")
-    public ResponseEntity<?> addEmployee(
-            @RequestParam String name,
-            @RequestParam String password,
-            @RequestParam String department,
-            @RequestParam UserRole role) {
+    public ResponseEntity<?> addEmployee(@Valid @RequestBody AddEmployeeDTO employeeDTO){
         try {
-            Employee employee = unifiedAuthService.addEmployee(name, password, department, role);
-
+            Employee employee = unifiedAuthService.addEmployee(
+                    employeeDTO.getName(),
+                    employeeDTO.getPassword(),
+                    employeeDTO.getDepartment(),
+                    employeeDTO.getRole()
+            );
             employee.setPassword(null);
 
             return ResponseEntity.ok(employee);
-        } catch (RuntimeException e) {
+        }
+        catch (RuntimeException e){
             return ResponseEntity.badRequest().body("Failed to add employee: " + e.getMessage());
         }
+
     }
 
     @PostMapping("/employee/change-password")

@@ -10,6 +10,6 @@ import org.hibernate.validator.constraints.NotBlank;
 @Data
 public class AdminApprovalAndRejectDTO {
     @NotBlank(message = "Admin name is required")
-    private String adminName;
+    private String reason;
 
 }

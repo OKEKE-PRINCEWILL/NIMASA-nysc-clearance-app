@@ -9,7 +9,7 @@ import org.hibernate.validator.constraints.NotBlank;
 @Data
 public class DeleteFormDTO {
     @NotBlank(message = "Admin name is required")
-    private String adminName;
+    private String reason;
 
 
 }

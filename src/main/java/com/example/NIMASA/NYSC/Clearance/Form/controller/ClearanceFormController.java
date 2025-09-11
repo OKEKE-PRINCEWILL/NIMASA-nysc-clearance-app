@@ -1,22 +1,24 @@
 
 package com.example.NIMASA.NYSC.Clearance.Form.controller;
+import com.example.NIMASA.NYSC.Clearance.Form.securityModel.EmployeePrincipal;
 import com.example.NIMASA.NYSC.Clearance.Form.service.ResponseFilterService;
-import com.example.NIMASA.NYSC.Clearance.Form.repository.ApprovedHodRepo;
-import com.example.NIMASA.NYSC.Clearance.Form.model.ApprovedSupervisors;
 import com.example.NIMASA.NYSC.Clearance.Form.service.ClearanceFormService;
 import com.example.NIMASA.NYSC.Clearance.Form.DTOs.*;
 import com.example.NIMASA.NYSC.Clearance.Form.FormStatus;
 import com.example.NIMASA.NYSC.Clearance.Form.Enums.UserRole;
-import com.example.NIMASA.NYSC.Clearance.Form.model.ApprovedHod;
-import com.example.NIMASA.NYSC.Clearance.Form.repository.ApprovedSupervisorsRepo;
 import com.example.NIMASA.NYSC.Clearance.Form.model.ClearanceForm;
 import com.example.NIMASA.NYSC.Clearance.Form.service.SignatureService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -34,8 +36,8 @@ import java.util.Optional;
 public class ClearanceFormController {
 
     private final ClearanceFormService clearanceFormService;
-    private final ApprovedSupervisorsRepo approvedSupervisorsRepo;
-    private final ApprovedHodRepo approvedHodRepo;
+//    private final ApprovedSupervisorsRepo approvedSupervisorsRepo;
+//    private final ApprovedHodRepo approvedHodRepo;
     private final ResponseFilterService responseFilterService;
     private final SignatureService signatureService;
 
@@ -70,7 +72,6 @@ public class ClearanceFormController {
 
         return ResponseEntity.ok(response);
     }
-
 
 
     @GetMapping("/{id}")
@@ -111,120 +112,219 @@ public class ClearanceFormController {
         return ResponseEntity.ok(filteredForms);
     }
 
-    // Supervisor endpoints
-    @GetMapping("/supervisor/pending")
-    public ResponseEntity<List<FilteredClearanceFormResponseDTO>> getPendingSupervisorForms(
+    @PostMapping("/{id}/supervisor-review")
+    public ResponseEntity<FilteredClearanceFormResponseDTO> submitSupervisorReview(
+            @PathVariable Long id,
+            @Valid @ModelAttribute SubmitSupervisorReviewDTO reviewDTO,
+            BindingResult result,
             @RequestParam(value = "role", required = false) String roleParam) {
 
-        List<ClearanceForm> forms = clearanceFormService.getByStatus(FormStatus.PENDING_SUPERVISOR);
-        UserRole userRole = parseUserRole(roleParam);
-        List<FilteredClearanceFormResponseDTO> filteredForms = responseFilterService.filterFormsByRole(forms, userRole);
+        if (result.hasErrors()) {
+            return ResponseEntity.badRequest().body((FilteredClearanceFormResponseDTO) result.getAllErrors());
+        }
+        try {
+            ClearanceForm form = clearanceFormService.submitSupervisorReview(
+                    id,
+                    reviewDTO.getSupervisorName(),
+                    reviewDTO.getDaysAbsent(),
+                    reviewDTO.getConductRemark(),
+                    reviewDTO.getSignatureFile());
 
-        return ResponseEntity.ok(filteredForms);
+            UserRole userRole = parseUserRole(roleParam);
+            FilteredClearanceFormResponseDTO filteredForm = responseFilterService.filterFormByRole(form, userRole);
+
+            return ResponseEntity.ok(filteredForm);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().build();
+
+        }
     }
 
-
-@PostMapping("/{id}/supervisor-review")
-public ResponseEntity<FilteredClearanceFormResponseDTO> submitSupervisorReview(
-        @PathVariable Long id,
-        @RequestParam("supervisorName") String supervisorName,
-        @RequestParam("daysAbsent") Integer daysAbsent,
-        @RequestParam("conductRemark") String conductRemark,
-        @RequestParam(value = "signatureFile", required = false) MultipartFile signatureFile,
-        @RequestParam(value = "role", required = false) String roleParam) {
-
-    try {
-        ClearanceForm form = clearanceFormService.submitSupervisorReview(
-                id, supervisorName, daysAbsent, conductRemark, signatureFile);
-
-        UserRole userRole = parseUserRole(roleParam);
-        FilteredClearanceFormResponseDTO filteredForm = responseFilterService.filterFormByRole(form, userRole);
-
-        return ResponseEntity.ok(filteredForm);
-    } catch (RuntimeException e) {
-        return ResponseEntity.badRequest().build();
-    }
-}
-
-
-    // HOD endpoints
-    @GetMapping("/hod/pending")
-    public ResponseEntity<List<FilteredClearanceFormResponseDTO>> getPendingHodForms(
+    @PostMapping("/{id}/hod-review")
+    public ResponseEntity<FilteredClearanceFormResponseDTO> submitHodReview(
+            @PathVariable Long id,
+            @Valid @ModelAttribute SubmitHodReviewDTO reviewDTO,
             @RequestParam(value = "role", required = false) String roleParam) {
 
-        List<ClearanceForm> forms = clearanceFormService.getByStatus(FormStatus.PENDING_HOD);
-        UserRole userRole = parseUserRole(roleParam);
-        List<FilteredClearanceFormResponseDTO> filteredForms = responseFilterService.filterFormsByRole(forms, userRole);
+        try {
+            ClearanceForm form = clearanceFormService.submitHodReview(
+                    id,
+                    reviewDTO.getHodName(),
+                    reviewDTO.getHodRemark(),
+                    reviewDTO.getSignatureFile()
+            );
+            UserRole userRole = parseUserRole(roleParam);
+            FilteredClearanceFormResponseDTO filteredForm = responseFilterService.filterFormByRole(form, userRole);
+            return ResponseEntity.ok(filteredForm);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().build();
 
-        return ResponseEntity.ok(filteredForms);
+        }
     }
 
 
-@PostMapping("/{id}/hod-review")
-public ResponseEntity<FilteredClearanceFormResponseDTO> submitHodReview(
-        @PathVariable Long id,
-        @RequestParam("hodName") String hodName,
-        @RequestParam("hodRemark") String hodRemark,
-        @RequestParam(value = "signatureFile", required = false) MultipartFile signatureFile,
-        @RequestParam(value = "role", required = false) String roleParam) {
+    @GetMapping("/pending")
+    public ResponseEntity<List<FilteredClearanceFormResponseDTO>> getPendingFormsForUser(
+            @RequestParam(value = "role", required = false) String roleParam) {
 
-    try {
-        ClearanceForm form = clearanceFormService.submitHodReview(
-                id, hodName, hodRemark, signatureFile);
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        UserRole userRole = parseUserRole(roleParam);
-        FilteredClearanceFormResponseDTO filteredForm = responseFilterService.filterFormByRole(form, userRole);
+            if (authentication == null || !authentication.isAuthenticated()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+            UserRole userRole;
+            String userDepartment;
 
-        return ResponseEntity.ok(filteredForm);
-    } catch (RuntimeException e) {
-        return ResponseEntity.badRequest().build();
+            if (authentication.getPrincipal() instanceof EmployeePrincipal) {
+                EmployeePrincipal employeePrincipal = (EmployeePrincipal) authentication.getPrincipal();
+                userRole = employeePrincipal.getEmployee().getRole();
+                userDepartment = employeePrincipal.getEmployee().getDepartment();
+            } else {
+                userRole = parseUserRole(roleParam);
+                userDepartment = null;
+            }
+            List<ClearanceForm> pendingForm = clearanceFormService.getPendingFormsForUser(userRole, userDepartment);
+
+            List<FilteredClearanceFormResponseDTO> filteredForms =
+                    responseFilterService.filterFormsByRole(pendingForm, userRole);
+            return ResponseEntity.ok(filteredForms);
+
+        } catch (Exception e) {
+            // Log the error and return bad request
+            System.err.println("Error getting pending forms: " + e.getMessage());
+            return ResponseEntity.badRequest().build();
+        }
     }
-}
 
+    @GetMapping("/pending/count")
+    public ResponseEntity<Map<String, Object>> getPendingCountForUser(){
+        try{
+            Authentication authentication= SecurityContextHolder.getContext().getAuthentication();
 
-    // Admin-related endpoints
-    @GetMapping("/admin/pending")
-    public ResponseEntity<List<ClearanceForm>> getPendingAdminForms() {
-        List<ClearanceForm> forms = clearanceFormService.getByStatus(FormStatus.PENDING_ADMIN);
-        return ResponseEntity.ok(forms); // Return full ClearanceForm list not filtered
+            if(authentication==null || !authentication.isAuthenticated()){
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            if(authentication.getPrincipal() instanceof EmployeePrincipal){
+                EmployeePrincipal employeePrincipal= (EmployeePrincipal) authentication.getPrincipal();
+                UserRole userRole= employeePrincipal.getEmployee().getRole();
+                String userDepartment= employeePrincipal.getEmployee().getDepartment();
+                long pendingCount= clearanceFormService.getPendingCountForUser(userRole, userDepartment);
+
+                Map<String, Object> response= new HashMap<>();
+                response.put("role", userRole);
+                response.put("department", userDepartment);
+                response.put("pendingCount", pendingCount);
+
+                return ResponseEntity.ok(response);
+            }
+
+            return ResponseEntity.badRequest().build();
+
+        } catch (Exception e) {
+            System.err.println("Error getting pending count: " + e.getMessage());
+            return ResponseEntity.badRequest().build();
+        }
     }
 
     @PostMapping("/{id}/approve")
-    public ResponseEntity<ClearanceForm> approveForm(
+    public ResponseEntity<?> approveForm(
             @PathVariable Long id,
             @Valid @RequestBody AdminApprovalAndRejectDTO approval) {
 
-        ClearanceForm form = clearanceFormService.approveForm(id, approval.getAdminName());
-        return ResponseEntity.ok(form); // Return full ClearanceForm not filtered
+        try {
+            // Get authenticated user
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated()) {
+                return ResponseEntity.status(401).body("Authentication required");
+            }
+
+            // Check if user is an admin
+            EmployeePrincipal principal = (EmployeePrincipal) authentication.getPrincipal();
+            if (principal.getEmployee().getRole() != UserRole.ADMIN) {
+                return ResponseEntity.status(403).body("Access denied. Admin role required.");
+            }
+
+            // Get admin name from authenticated user
+            String adminName = principal.getEmployee().getName();
+
+            ClearanceForm form = clearanceFormService.approveForm(id, adminName);
+            return ResponseEntity.ok(form);
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body("Approval failed: " + e.getMessage());
+        }
     }
 
-
     @PostMapping("/{id}/reject")
-    public ResponseEntity<ClearanceForm> rejectForm(
+    public ResponseEntity<?> rejectForm(
             @PathVariable Long id,
             @Valid @RequestBody AdminApprovalAndRejectDTO reject) {
 
-        ClearanceForm form = clearanceFormService.rejectForm(id, reject.getAdminName());
-        return ResponseEntity.ok(form); // Return full ClearanceForm not filtered
+        try {
+            // Get authenticated user
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated()) {
+                return ResponseEntity.status(401).body("Authentication required");
+            }
+
+            // Check if user is an admin
+            EmployeePrincipal principal = (EmployeePrincipal) authentication.getPrincipal();
+            if (principal.getEmployee().getRole() != UserRole.ADMIN) {
+                return ResponseEntity.status(403).body("Access denied. Admin role required.");
+            }
+
+            // Get admin name from authenticated user
+            String adminName = principal.getEmployee().getName();
+
+            ClearanceForm form = clearanceFormService.rejectForm(id, adminName);
+            return ResponseEntity.ok(form);
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body("Rejection failed: " + e.getMessage());
+        }
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteForm(
             @PathVariable Long id,
-            @Valid @RequestBody DeleteFormDTO deleteRequest) {
+            @Valid @RequestBody(required = false) DeleteFormDTO deleteRequest) {
 
         try {
+            // Get authenticated user
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated()) {
+                return ResponseEntity.status(401).body("Authentication required");
+            }
+
+            // Check if user is an admin
+            EmployeePrincipal principal = (EmployeePrincipal) authentication.getPrincipal();
+            if (principal.getEmployee().getRole() != UserRole.ADMIN) {
+                return ResponseEntity.status(403).body("Access denied. Admin role required.");
+            }
+
+            // Check if form exists
             if (!clearanceFormService.formExists(id)) {
                 return ResponseEntity.notFound().build();
             }
 
-            clearanceFormService.deleteForm(id, deleteRequest.getAdminName());
+            // Get admin name from authenticated user
+            String adminName = principal.getEmployee().getName();
 
+            // Delete the form
+            clearanceFormService.deleteForm(id, adminName);
+
+            // Prepare response
             Map<String, Object> response = new HashMap<>();
             response.put("message", "Form deleted successfully");
             response.put("formId", id);
-            response.put("deletedBy", deleteRequest.getAdminName());
+            response.put("deletedBy", adminName);
             response.put("deletedAt", LocalDateTime.now());
+
+            if (deleteRequest != null && deleteRequest.getReason() != null) {
+                response.put("reason", deleteRequest.getReason());
+            }
 
             return ResponseEntity.ok(response);
 
@@ -234,21 +334,21 @@ public ResponseEntity<FilteredClearanceFormResponseDTO> submitHodReview(
     }
 
     // Management endpoints
-    @PostMapping("/admin/supervisors")
-    public ResponseEntity<ApprovedSupervisors> addSupervisor(@RequestBody AddNamesRequestDTO requestDTO) {
-        ApprovedSupervisors supervisor = new ApprovedSupervisors();
-        supervisor.setName(requestDTO.getName());
-        supervisor.setActive(true);
-        return ResponseEntity.ok(approvedSupervisorsRepo.save(supervisor));
-    }
-
-    @PostMapping("/admin/hod")
-    public ResponseEntity<ApprovedHod> addHod(@RequestBody AddNamesRequestDTO requestDTO) {
-        ApprovedHod hod = new ApprovedHod();
-        hod.setName(requestDTO.getName());
-        hod.setActive(true);
-        return ResponseEntity.ok(approvedHodRepo.save(hod));
-    }
+//    @PostMapping("/admin/supervisors")
+//    public ResponseEntity<ApprovedSupervisors> addSupervisor(@RequestBody AddNamesRequestDTO requestDTO) {
+//        ApprovedSupervisors supervisor = new ApprovedSupervisors();
+//        supervisor.setName(requestDTO.getName());
+//        supervisor.setActive(true);
+//        return ResponseEntity.ok(approvedSupervisorsRepo.save(supervisor));
+//    }
+//
+//    @PostMapping("/admin/hod")
+//    public ResponseEntity<ApprovedHod> addHod(@RequestBody AddNamesRequestDTO requestDTO) {
+//        ApprovedHod hod = new ApprovedHod();
+//        hod.setName(requestDTO.getName());
+//        hod.setActive(true);
+//        return ResponseEntity.ok(approvedHodRepo.save(hod));
+//    }
 
     // Search endpoints with role filtering
     @GetMapping("/search/corps")

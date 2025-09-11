@@ -24,5 +24,9 @@ public interface ClearanceRepository extends JpaRepository<ClearanceForm, Long> 
     long countByStatus(FormStatus status);
 
     long countByStatusAndCreatedAtAfter(FormStatus status, LocalDateTime date);
+
+    List<ClearanceForm> findByStatusAndDepartment(FormStatus status, String department);
+
+    long countByStatusAndDepartment(FormStatus status, String department);
 }
 

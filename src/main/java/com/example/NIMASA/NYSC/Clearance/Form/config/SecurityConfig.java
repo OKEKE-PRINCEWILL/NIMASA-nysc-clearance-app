@@ -8,6 +8,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -46,15 +47,14 @@ public class SecurityConfig {
                                 // Review endpoints - no token required (role-based access handled in service)
                                 .requestMatchers(HttpMethod.POST, "/api/clearance-forms/*/supervisor-review").permitAll()
                                 .requestMatchers(HttpMethod.POST, "/api/clearance-forms/*/hod-review").permitAll()
-                                .requestMatchers(HttpMethod.GET, "/api/clearance-forms/supervisor/pending").permitAll()
-                                .requestMatchers(HttpMethod.GET, "/api/clearance-forms/hod/pending").permitAll()
+                                .requestMatchers(HttpMethod.GET, "/api/clearance-forms/pending").permitAll()
+                                .requestMatchers(HttpMethod.GET, "/api/clearance-forms/pending/count").permitAll()
                                 .requestMatchers(HttpMethod.GET, "/api/clearance-forms/*/exists").permitAll()
 
                                 // Admin-only endpoints token will be required
                                 .requestMatchers(HttpMethod.POST, "/api/clearance-forms/*/approve").authenticated()
                                 .requestMatchers(HttpMethod.POST, "/api/clearance-forms/*/reject").authenticated()
                                 .requestMatchers(HttpMethod.DELETE, "/api/clearance-forms/**").authenticated()
-                                .requestMatchers(HttpMethod.GET, "/api/clearance-forms/admin/pending").authenticated()
                                 .requestMatchers(HttpMethod.POST, "/api/clearance-forms/admin/**").authenticated()
 
                                 // Employee management endpoints token will be required
