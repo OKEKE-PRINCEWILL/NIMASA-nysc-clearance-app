@@ -3,14 +3,21 @@ package com.example.NIMASA.NYSC.Clearance.Form.service;
 
 import com.example.NIMASA.NYSC.Clearance.Form.DTOs.PrintableFormResponseDTO;
 import com.example.NIMASA.NYSC.Clearance.Form.Enums.UserRole;
+import com.example.NIMASA.NYSC.Clearance.Form.model.CorpsMember;
 import com.example.NIMASA.NYSC.Clearance.Form.model.Employee;
 import com.example.NIMASA.NYSC.Clearance.Form.repository.ClearanceRepository;
 import com.example.NIMASA.NYSC.Clearance.Form.FormStatus;
 import com.example.NIMASA.NYSC.Clearance.Form.model.ClearanceForm;
+import com.example.NIMASA.NYSC.Clearance.Form.repository.CorpsMemberRepository;
 import com.example.NIMASA.NYSC.Clearance.Form.repository.EmployeeRepository;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.grammars.hql.HqlParser;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -24,7 +31,8 @@ public class ClearanceFormService {
 //    private final ApprovedSupervisorsRepo approvedSupervisorsRepo;
 //    private final ApprovedHodRepo approvedHodRepo;
     private final EmployeeRepository employeeRepository;
-    private final SignatureService signatureService; // Add signature service
+    private final SignatureService signatureService;
+    private final CorpsMemberRepository corpsMemberRepository;// Add signature service
 
     // Generate initials as fallback (keep existing method)
     private String generateInitials(String fullName){
@@ -354,5 +362,154 @@ public class ClearanceFormService {
 
     public boolean formExists(Long formId) {
         return clearanceRepo.existsById(formId);
+    }
+    public byte[] exportFormsToExcel() throws IOException {
+        // Fetch data
+        List<ClearanceForm> allForms = clearanceRepo.findAll();
+        List<Employee> allEmployees = employeeRepository.findAll();
+        List<CorpsMember> allCorpsMembers = corpsMemberRepository.findAll();
+
+        Workbook workbook = new XSSFWorkbook();
+
+        // Create sheets
+        Sheet formsSheet = workbook.createSheet("Clearance Forms");
+        Sheet employeesSheet = workbook.createSheet("Employees");
+        Sheet corpsMembersSheet = workbook.createSheet("Corps Members");
+
+        // Header style
+        CellStyle headerStyle = workbook.createCellStyle();
+        Font headerFont = workbook.createFont();
+        headerFont.setBold(true);
+        headerFont.setFontHeightInPoints((short) 12);
+        headerStyle.setFont(headerFont);
+        headerStyle.setFillForegroundColor(IndexedColors.LIGHT_BLUE.getIndex());
+        headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+        // Populate sheets
+        createClearanceFormsSheet(formsSheet, allForms, headerStyle);
+        createEmployeesSheet(employeesSheet, allEmployees, headerStyle);
+        createCorpsMembersSheet(corpsMembersSheet, allCorpsMembers, headerStyle);
+
+        // Convert to byte[]
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        workbook.write(outputStream);
+        workbook.close();
+
+        return outputStream.toByteArray();
+    }
+
+
+    private void createClearanceFormsSheet(Sheet sheet, List<ClearanceForm> allForms, CellStyle headerStyle) {
+        // Create headers
+        Row headerRow = sheet.createRow(0);
+        String[] headers = {
+                "ID", "Corps Name", "State Code", "Department", "Status", "Created Date",
+                "Days Absent", "Conduct Remark", "Supervisor Name", "Supervisor Date",
+                "HOD Name", "HOD Remark", "HOD Date", "Admin Name", "Approval Date", "Approved"
+        };
+
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        // Fill data rows
+        int rowNum = 1;
+        for (ClearanceForm form : allForms) {
+            Row row = sheet.createRow(rowNum++);
+
+            row.createCell(0).setCellValue(form.getId());
+            row.createCell(1).setCellValue(form.getCorpsName());
+            row.createCell(2).setCellValue(form.getStateCode());
+            row.createCell(3).setCellValue(form.getDepartment());
+            row.createCell(4).setCellValue(form.getStatus().toString());
+            row.createCell(5).setCellValue(form.getCreatedAt().toString());
+
+            // Supervisor data
+            row.createCell(6).setCellValue(form.getDayAbsent() != null ? form.getDayAbsent() : 0);
+            row.createCell(7).setCellValue(form.getConductRemark() != null ? form.getConductRemark() : "");
+            row.createCell(8).setCellValue(form.getSupervisorName() != null ? form.getSupervisorName() : "");
+            row.createCell(9).setCellValue(form.getSupervisorDate() != null ? form.getSupervisorDate().toString() : "");
+
+            // HOD data
+            row.createCell(10).setCellValue(form.getHodName() != null ? form.getHodName() : "");
+            row.createCell(11).setCellValue(form.getHodRemark() != null ? form.getHodRemark() : "");
+            row.createCell(12).setCellValue(form.getHodDate() != null ? form.getHodDate().toString() : "");
+
+            // Admin data
+            row.createCell(13).setCellValue(form.getAdminName() != null ? form.getAdminName() : "");
+            row.createCell(14).setCellValue(form.getApprovalDate() != null ? form.getApprovalDate().toString() : "");
+            row.createCell(15).setCellValue(form.getApproved() != null ? form.getApproved().toString() : "");
+        }
+
+        // Auto-size columns
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+    }
+
+    private void createEmployeesSheet(Sheet sheet, List<Employee> allEmployees, CellStyle headerStyle) {
+        // Create headers
+        Row headerRow = sheet.createRow(0);
+        String[] headers = {
+                "ID", "Name", "Department", "Role", "Active", "Created Date", "Last Password Change"
+        };
+
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        // Fill data rows
+        int rowNum = 1;
+        for (Employee employee : allEmployees) {
+            Row row = sheet.createRow(rowNum++);
+
+            row.createCell(0).setCellValue(employee.getId());
+            row.createCell(1).setCellValue(employee.getName());
+            row.createCell(2).setCellValue(employee.getDepartment());
+            row.createCell(3).setCellValue(employee.getRole().toString());
+            row.createCell(4).setCellValue(employee.isActive() ? "YES" : "NO");
+            row.createCell(5).setCellValue(employee.getCreatedAt().toString());
+            row.createCell(6).setCellValue(employee.getLastPasswordChange().toString());
+        }
+
+        // Auto-size columns
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+    }
+
+    private void createCorpsMembersSheet(Sheet sheet, List<CorpsMember> allCorpsMembers, CellStyle headerStyle) {
+        // Create headers
+        Row headerRow = sheet.createRow(0);
+        String[] headers = {
+                "ID", "Name", "Department", "Active", "Created Date"
+        };
+
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        // Fill data rows
+        int rowNum = 1;
+        for (CorpsMember corpsMember : allCorpsMembers) {
+            Row row = sheet.createRow(rowNum++);
+
+            row.createCell(0).setCellValue(corpsMember.getId());
+            row.createCell(1).setCellValue(corpsMember.getName());
+            row.createCell(2).setCellValue(corpsMember.getDepartment());
+            row.createCell(3).setCellValue(corpsMember.isActive() ? "YES" : "NO");
+            row.createCell(4).setCellValue(corpsMember.getCreatedAt().toString());
+        }
+
+        // Auto-size columns
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
     }
 }

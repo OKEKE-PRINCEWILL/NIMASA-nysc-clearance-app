@@ -1,5 +1,6 @@
 
 package com.example.NIMASA.NYSC.Clearance.Form.controller;
+import com.example.NIMASA.NYSC.Clearance.Form.model.Employee;
 import com.example.NIMASA.NYSC.Clearance.Form.securityModel.EmployeePrincipal;
 import com.example.NIMASA.NYSC.Clearance.Form.service.ResponseFilterService;
 import com.example.NIMASA.NYSC.Clearance.Form.service.ClearanceFormService;
@@ -8,6 +9,8 @@ import com.example.NIMASA.NYSC.Clearance.Form.FormStatus;
 import com.example.NIMASA.NYSC.Clearance.Form.Enums.UserRole;
 import com.example.NIMASA.NYSC.Clearance.Form.model.ClearanceForm;
 import com.example.NIMASA.NYSC.Clearance.Form.service.SignatureService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
@@ -25,6 +28,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -470,5 +474,43 @@ public class ClearanceFormController {
             case "pdf" -> "application/pdf";
             default -> "application/octet-stream"; // fallback for unknown file types
         };
+
+
+    }
+    @GetMapping("/admin/export/excel")
+    @Operation(summary = "Export all forms to Excel (Admin only)")
+    @SecurityRequirement(name = "Bearer Authentication")
+    public ResponseEntity<ByteArrayResource> exportFormsToExcel() {
+        try {
+            // Get authenticated user
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated()) {
+                return ResponseEntity.status(401).build();
+            }
+
+            EmployeePrincipal principal = (EmployeePrincipal) authentication.getPrincipal();
+            Employee currentUser = principal.getEmployee();
+
+            // Check if user is admin
+            if (currentUser.getRole() != UserRole.ADMIN) {
+                return ResponseEntity.status(403).build();
+            }
+
+            // Generate Excel file
+            byte[] excelData = clearanceFormService.exportFormsToExcel();
+            ByteArrayResource resource = new ByteArrayResource(excelData);
+
+            // Generate filename with timestamp
+            String filename = "clearance_forms_" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy_MM_dd")) + ".xlsx";
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .contentLength(excelData.length)
+                    .body(resource);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500).build();
+        }
     }
 }
