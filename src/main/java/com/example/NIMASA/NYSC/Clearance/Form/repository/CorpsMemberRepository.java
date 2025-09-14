@@ -10,13 +10,13 @@ public interface CorpsMemberRepository extends JpaRepository<CorpsMember, Long> 
 
     Optional<CorpsMember> findByNameAndActive(String name, boolean active);
 
-//    Optional<CorpsMember> findByName(String name);
-//
-//    List<CorpsMember> findByDepartment(String department);
-//
-//    List<CorpsMember> findByActive(boolean active);
-//
-//    boolean existsByName(String name);
-//
-//    boolean existsByNameAndActive(String name, boolean active);
+    Optional<CorpsMember> findByName(String name);
+
+    List<CorpsMember> findByDepartment(String department);
+
+    List<CorpsMember> findByActive(boolean active);
+
+    boolean existsByName(String name);
+
+    boolean existsByNameAndActive(String name, boolean active);
 }

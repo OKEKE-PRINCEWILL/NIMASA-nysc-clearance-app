@@ -27,17 +27,18 @@ public class UnifiedAuthService {
     private final JwtService jwtService;
 
     public AuthResponseDTO authenticate(AuthRequestDTO request, HttpServletResponse response) {
+        // First, check if it's an employee
         Optional<Employee> employeeOpt = employeeRepository.findByNameAndActive(request.getName(), true);
 
         if (employeeOpt.isPresent()) {
             Employee employee = employeeOpt.get();
 
-            // check if password was provided
+            // Check if password was provided
             if (request.getPassword() == null || request.getPassword().trim().isEmpty()) {
                 return createPasswordRequiredResponse(employee);
             }
 
-            // validate password
+            // Validate password
             if (!encoder.matches(request.getPassword(), employee.getPassword())) {
                 throw new RuntimeException("Invalid password. Please provide the correct password.");
             }
@@ -47,35 +48,51 @@ public class UnifiedAuthService {
             }
 
             String token = jwtService.generateToken(employee.getName());
-
             return createEmployeeSuccessResponse(employee, token, response);
         }
         else {
+            // Employee not found, check if it's a corps member request
+            if (request.getRole() == null || request.getRole() != UserRole.CORPS_MEMBER) {
+                throw new RuntimeException("User not found. If you are a corps member, please select 'Corps Member' as your role.");
+            }
+
+            // Handle corps member logic
             return handleCorpsMember(request);
         }
     }
 
     private AuthResponseDTO handleCorpsMember(AuthRequestDTO request) {
+        try {
+            // Check if corps member already exists
+            Optional<CorpsMember> existingCorpsMember = corpsMemberRepository.findByNameAndActive(request.getName(), true);
 
-        if (request.getRole() != UserRole.CORPS_MEMBER) {
-            throw new RuntimeException("Access denied. Only employees can have " + request.getRole() + " role.");
-        }
+            if (existingCorpsMember.isPresent()) {
+                CorpsMember corpsMember = existingCorpsMember.get();
+                return createCorpsMemberResponse(corpsMember, false);
+            } else {
+                // Validate required fields for new corps member
+                if (request.getName() == null || request.getName().trim().isEmpty()) {
+                    throw new RuntimeException("Name is required for corps member registration");
+                }
+                if (request.getDepartment() == null || request.getDepartment().trim().isEmpty()) {
+                    throw new RuntimeException("Department is required for corps member registration");
+                }
 
-        Optional<CorpsMember> existingCorpsMember = corpsMemberRepository.findByNameAndActive(request.getName(), true);
+                // Create new corps member
+                CorpsMember newCorpsMember = new CorpsMember();
+                newCorpsMember.setName(request.getName().trim());
+                newCorpsMember.setDepartment(request.getDepartment().trim());
+                newCorpsMember.setActive(true);
+                newCorpsMember.setCreatedAt(LocalDate.now());
 
-        if (existingCorpsMember.isPresent()) {
-            CorpsMember corpsMember = existingCorpsMember.get();
-            return createCorpsMemberResponse(corpsMember, false);
-        } else {
-            // Create new corps member
-            CorpsMember newCorpsMember = new CorpsMember();
-            newCorpsMember.setName(request.getName());
-            newCorpsMember.setDepartment(request.getDepartment());
-            newCorpsMember.setActive(true);
-            newCorpsMember.setCreatedAt(LocalDate.now());
-
-            CorpsMember savedCorpsMember =  corpsMemberRepository.save(newCorpsMember);
-            return createCorpsMemberResponse(savedCorpsMember, true);
+                CorpsMember savedCorpsMember = corpsMemberRepository.save(newCorpsMember);
+                return createCorpsMemberResponse(savedCorpsMember, true);
+            }
+        } catch (Exception e) {
+            // Log the actual error for debugging
+            System.err.println("Error in handleCorpsMember: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Failed to authenticate corps member: " + e.getMessage());
         }
     }
 
