@@ -58,7 +58,7 @@ public class ClearanceFormController {
     }
 
 
-    @PostMapping
+    @PostMapping("/submission")
     public ResponseEntity<CorpsMemberFormResponseDTO> createForm(@Valid @RequestBody CorpsMemberFormRequestDTO requestDTO) {
         ClearanceForm form = new ClearanceForm();
         form.setCorpsName(requestDTO.getCorpsName());
