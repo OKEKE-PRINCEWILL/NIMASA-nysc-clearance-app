@@ -337,23 +337,6 @@ public class ClearanceFormController {
         }
     }
 
-    // Management endpoints
-//    @PostMapping("/admin/supervisors")
-//    public ResponseEntity<ApprovedSupervisors> addSupervisor(@RequestBody AddNamesRequestDTO requestDTO) {
-//        ApprovedSupervisors supervisor = new ApprovedSupervisors();
-//        supervisor.setName(requestDTO.getName());
-//        supervisor.setActive(true);
-//        return ResponseEntity.ok(approvedSupervisorsRepo.save(supervisor));
-//    }
-//
-//    @PostMapping("/admin/hod")
-//    public ResponseEntity<ApprovedHod> addHod(@RequestBody AddNamesRequestDTO requestDTO) {
-//        ApprovedHod hod = new ApprovedHod();
-//        hod.setName(requestDTO.getName());
-//        hod.setActive(true);
-//        return ResponseEntity.ok(approvedHodRepo.save(hod));
-//    }
-
     // Search endpoints with role filtering
     @GetMapping("/search/corps")
     public ResponseEntity<List<FilteredClearanceFormResponseDTO>> getCorpsMember(
