@@ -214,7 +214,7 @@ public class ClearanceFormService {
         dto.setAdminName(form.getAdminName());
         dto.setApprovalDate(form.getApprovalDate());
         dto.setStatus(form.getStatus());
-
+        dto.setAdminSignatureUrl(signatureService.getSignatureUrl("admin_signature.png"));
         return Optional.of(dto);
     }
 

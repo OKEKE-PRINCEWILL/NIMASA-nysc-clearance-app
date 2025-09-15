@@ -33,7 +33,7 @@ public class PrintableFormResponseDTO {
     private String adminName;
     private LocalDate approvalDate;
     private FormStatus status;
-
+    private String adminSignatureUrl;
     // Form metadata
     private LocalDate createdAt;
     private Long formId;
