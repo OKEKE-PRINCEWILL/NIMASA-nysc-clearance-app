@@ -5,21 +5,14 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.sql.Struct;
-
+@Data
 @AllArgsConstructor
 @NoArgsConstructor
-@Data
-public class AuthResponseDTO {
+public class RefreshTokenResponseDTO {
     private String message;
-    private String name;
-    private String department;
-    private String UserType;
-    private UserRole role;
-//    private String token;
-    private boolean NewCorpsMember;
-    private boolean passwordRequired;
-
     private long accessTokenExpirationMs;
-    private boolean requiresRefresh;
+    private String username;
+    private UserRole role;
+    // ❌ NO access token in response - sent via cookie only!
 }
+

@@ -1,0 +1,148 @@
+package com.example.NIMASA.NYSC.Clearance.Form.SecurityService;
+
+import com.example.NIMASA.NYSC.Clearance.Form.model.RefreshToken;
+import com.example.NIMASA.NYSC.Clearance.Form.repository.RefreshTokenRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+@Service
+@RequiredArgsConstructor
+public class RefreshTokenService {
+
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final BCryptPasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
+
+    /**
+     * Create a new refresh token for a user
+     */
+    @Transactional
+    public RefreshToken createRefreshToken(String employeeName, String tokenFamily, String deviceInfo) {
+        // Generate secure random token
+        String rawToken = jwtService.generateSecureRandomToken();
+
+        // Hash the token before storing (security best practice)
+        String hashedToken = passwordEncoder.encode(rawToken);
+
+        RefreshToken refreshToken = new RefreshToken();
+        refreshToken.setToken(hashedToken);
+        refreshToken.setEmployeeName(employeeName);
+        refreshToken.setTokenFamily(tokenFamily);
+        refreshToken.setDeviceInfo(deviceInfo);
+        refreshToken.setExpirationDate(LocalDateTime.now().plusSeconds(jwtService.getRefreshTokenExpirationMs() / 1000));
+        refreshToken.setCreatedAt(LocalDateTime.now());
+
+        return refreshTokenRepository.save(refreshToken);
+    }
+
+    /**
+     * Validate refresh token and return the associated user
+     */
+    public Optional<String> validateRefreshToken(String rawToken) {
+        // Find all non-revoked tokens and check each one
+        // (We hash tokens, so we can't query directly)
+        List<RefreshToken> allTokens = refreshTokenRepository.findAll()
+                .stream()
+                .filter(token -> !token.isRevoked() && !token.isExpired())
+                .toList();
+
+        for (RefreshToken token : allTokens) {
+            if (passwordEncoder.matches(rawToken, token.getToken())) {
+                return Optional.of(token.getEmployeeName());
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    /**
+     * Rotate refresh token - revoke old one and create new one
+     * This happens every time a refresh token is used (security best practice)
+     */
+    @Transactional
+    public RefreshToken rotateRefreshToken(String oldRawToken, String deviceInfo) {
+        // Find and validate the old token
+        Optional<RefreshToken> oldTokenOpt = findTokenByRawValue(oldRawToken);
+
+        if (oldTokenOpt.isEmpty() || oldTokenOpt.get().isRevoked() || oldTokenOpt.get().isExpired()) {
+            // If token is invalid, revoke entire family (security measure)
+            if (oldTokenOpt.isPresent()) {
+                revokeTokenFamily(oldTokenOpt.get().getTokenFamily());
+            }
+            throw new RuntimeException("Invalid refresh token");
+        }
+
+        RefreshToken oldToken = oldTokenOpt.get();
+
+        // Revoke the old token
+        oldToken.setRevoked(true);
+        refreshTokenRepository.save(oldToken);
+
+        // Create new token with same family
+        return createRefreshToken(oldToken.getEmployeeName(), oldToken.getTokenFamily(), deviceInfo);
+    }
+
+    /**
+     * Find refresh token by raw value (before hashing)
+     */
+    private Optional<RefreshToken> findTokenByRawValue(String rawToken) {
+        List<RefreshToken> allTokens = refreshTokenRepository.findAll()
+                .stream()
+                .filter(token -> !token.isRevoked())
+                .toList();
+
+        for (RefreshToken token : allTokens) {
+            if (passwordEncoder.matches(rawToken, token.getToken())) {
+                return Optional.of(token);
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    /**
+     * Revoke all tokens for a user (logout all devices)
+     */
+    @Transactional
+    public int revokeAllTokensForEmployee(String employeeName) {
+        List<RefreshToken> activeTokens = refreshTokenRepository.findByEmployeeNameAndRevokedFalse(employeeName);
+        refreshTokenRepository.revokeAllTokensForEmployee(employeeName);
+        return activeTokens.size();
+    }
+
+    /**
+     * Revoke a specific token family (when compromise detected)
+     */
+    @Transactional
+    public void revokeTokenFamily(String tokenFamily) {
+        refreshTokenRepository.revokeTokenFamily(tokenFamily);
+    }
+
+    /**
+     * Get active session count for a user
+     */
+    public long getActiveSessionCount(String employeeName) {
+        return refreshTokenRepository.countActiveSessionsForEmployee(employeeName, LocalDateTime.now());
+    }
+
+    /**
+     * Clean up expired tokens - runs every hour
+     */
+    @Scheduled(fixedRate = 3600000) // 1 hour
+    @Transactional
+    public void cleanupExpiredTokens() {
+        try {
+            refreshTokenRepository.deleteExpiredAndRevokedTokens(LocalDateTime.now());
+            System.out.println("Cleaned up expired refresh tokens at: " + LocalDateTime.now());
+        } catch (Exception e) {
+            System.err.println("Failed to clean up expired tokens: " + e.getMessage());
+        }
+    }
+}

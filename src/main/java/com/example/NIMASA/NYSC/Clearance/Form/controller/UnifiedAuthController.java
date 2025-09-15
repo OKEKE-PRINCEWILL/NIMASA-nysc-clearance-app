@@ -1,47 +1,98 @@
+
 package com.example.NIMASA.NYSC.Clearance.Form.controller;
 
-import com.example.NIMASA.NYSC.Clearance.Form.DTOs.AddEmployeeDTO;
-import com.example.NIMASA.NYSC.Clearance.Form.DTOs.AuthRequestDTO;
-import com.example.NIMASA.NYSC.Clearance.Form.DTOs.AuthResponseDTO;
-import com.example.NIMASA.NYSC.Clearance.Form.DTOs.ChangePasswordDTO;
-import com.example.NIMASA.NYSC.Clearance.Form.Enums.UserRole;
+import com.example.NIMASA.NYSC.Clearance.Form.DTOs.*;
 import com.example.NIMASA.NYSC.Clearance.Form.SecurityService.UnifiedAuthService;
+import com.example.NIMASA.NYSC.Clearance.Form.SecurityService.RateLimitService;
 import com.example.NIMASA.NYSC.Clearance.Form.model.Employee;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import jakarta.servlet.http.HttpServletResponse;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/unified-auth")
 @Validated
-@Tag(name = "Unified Authentication", description = "Handles authentication for both employees and corps members")
+@Tag(name = "Enhanced Authentication", description = "Secure authentication with dual tokens and rate limiting")
 public class UnifiedAuthController {
 
     private final UnifiedAuthService unifiedAuthService;
+    private final RateLimitService rateLimitService;
 
     @PostMapping("/login")
-    @Operation(summary = "Unified login for employees and corps members")
-    public ResponseEntity<?> login(@Valid @RequestBody AuthRequestDTO request, HttpServletResponse response) {
+    @Operation(summary = "Secure login with dual token system")
+    public ResponseEntity<?> login(@Valid @RequestBody AuthRequestDTO request,
+                                   HttpServletRequest httpRequest,
+                                   HttpServletResponse response) {
         try {
-            AuthResponseDTO authResponse = unifiedAuthService.authenticate(request, response);
+            AuthResponseDTO authResponse = unifiedAuthService.authenticate(request, httpRequest, response);
             return ResponseEntity.ok(authResponse);
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body("Authentication failed: " + e.getMessage());
+            // Include rate limiting info in error response
+            String clientIp = getClientIp(httpRequest);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", e.getMessage());
+            errorResponse.put("remainingAttempts", rateLimitService.getRemainingAttempts(clientIp));
+
+            if (rateLimitService.getRemainingAttempts(clientIp) == 0) {
+                errorResponse.put("retryAfterMinutes", rateLimitService.getTimeUntilNextAttemptMinutes(clientIp));
+            }
+
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
+
+    @PostMapping("/refresh")
+    @Operation(summary = "Refresh access token using secure cookie")
+    public ResponseEntity<?> refreshToken(HttpServletRequest request,
+                                          HttpServletResponse response,
+                                          @RequestBody(required = false) RefreshTokenRequestDTO refreshRequest) {
+        try {
+            RefreshTokenResponseDTO refreshResponse = unifiedAuthService.refreshAccessToken(request, response);
+            return ResponseEntity.ok(refreshResponse);
+        } catch (RuntimeException e) {
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", e.getMessage());
+            errorResponse.put("action", "login_required");
+            return ResponseEntity.status(401).body(errorResponse);
+        }
+    }
+
+    @PostMapping("/logout")
+    @Operation(summary = "Secure logout with session termination")
+    public ResponseEntity<?> logout(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    @RequestBody(required = false) LogoutRequestDTO logoutRequest) {
+        try {
+            boolean logoutAllDevices = logoutRequest != null && logoutRequest.isLogoutAllDevices();
+            String message = unifiedAuthService.logout(request, response, logoutAllDevices);
+
+            Map<String, Object> logoutResponse = new HashMap<>();
+            logoutResponse.put("message", message);
+            logoutResponse.put("loggedOutFromAllDevices", logoutAllDevices);
+
+            return ResponseEntity.ok(logoutResponse);
+        } catch (Exception e) {
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Logout failed: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
 
     @PostMapping("/employee/add")
     @Operation(summary = "Add new employee (Admin only)")
     @SecurityRequirement(name = "Bearer Authentication")
-    public ResponseEntity<?> addEmployee(@Valid @RequestBody AddEmployeeDTO employeeDTO){
+    public ResponseEntity<?> addEmployee(@Valid @RequestBody AddEmployeeDTO employeeDTO) {
         try {
             Employee employee = unifiedAuthService.addEmployee(
                     employeeDTO.getName(),
@@ -49,14 +100,20 @@ public class UnifiedAuthController {
                     employeeDTO.getDepartment(),
                     employeeDTO.getRole()
             );
+
+            // Don't return password
             employee.setPassword(null);
 
-            return ResponseEntity.ok(employee);
-        }
-        catch (RuntimeException e){
-            return ResponseEntity.badRequest().body("Failed to add employee: " + e.getMessage());
-        }
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Employee added successfully");
+            response.put("employee", employee);
 
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Failed to add employee: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
     }
 
     @PostMapping("/employee/change-password")
@@ -65,9 +122,16 @@ public class UnifiedAuthController {
     public ResponseEntity<?> changeEmployeePassword(@Valid @RequestBody ChangePasswordDTO dto) {
         try {
             unifiedAuthService.changeEmployeePassword(dto.getUsername(), dto.getNewPassword());
-            return ResponseEntity.ok("Password changed successfully");
+
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "Password changed successfully");
+            response.put("username", dto.getUsername());
+
+            return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body("Password change failed: " + e.getMessage());
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Password change failed: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
 
@@ -77,9 +141,16 @@ public class UnifiedAuthController {
     public ResponseEntity<?> deactivateEmployee(@RequestParam String name) {
         try {
             unifiedAuthService.deactivateEmployee(name);
-            return ResponseEntity.ok("Employee deactivated successfully");
+
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "Employee deactivated successfully");
+            response.put("employeeName", name);
+
+            return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body("Failed to deactivate employee: " + e.getMessage());
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Failed to deactivate employee: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
 
@@ -89,23 +160,62 @@ public class UnifiedAuthController {
         try {
             Employee admin = unifiedAuthService.createInitialAdmin();
             admin.setPassword(null); // Don't return password
-            return ResponseEntity.ok(admin);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Initial admin created successfully");
+            response.put("admin", admin);
+            response.put("defaultPassword", "admin123");
+            response.put("warning", "Please change the default password immediately!");
+
+            return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body("Failed to create initial admin: " + e.getMessage());
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Failed to create initial admin: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
 
-    @PostMapping("/logout")
-    @Operation(summary = "Logout user by clearing cookie")
-    public ResponseEntity<?> logout(HttpServletResponse response) {
-        // Clear the auth cookie
-        Cookie tokenCookie = new Cookie("authToken", "");
-        tokenCookie.setHttpOnly(true);
-        tokenCookie.setSecure(false); // Set to true in production with HTTPS
-        tokenCookie.setPath("/");
-        tokenCookie.setMaxAge(0); // Expire immediately
-        response.addCookie(tokenCookie);
+    @GetMapping("/session/info")
+    @Operation(summary = "Get current session information")
+    @SecurityRequirement(name = "Bearer Authentication")
+    public ResponseEntity<?> getSessionInfo(HttpServletRequest request) {
+        try {
+            // This endpoint would provide session info for authenticated users
+            Map<String, Object> sessionInfo = new HashMap<>();
+            sessionInfo.put("message", "Session active");
+            sessionInfo.put("timestamp", System.currentTimeMillis());
 
-        return ResponseEntity.ok("Logged out successfully");
+            return ResponseEntity.ok(sessionInfo);
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body(Map.of("error", "Session expired"));
+        }
+    }
+
+    @PostMapping("/rate-limit/status")
+    @Operation(summary = "Check rate limit status for current IP")
+    public ResponseEntity<?> checkRateLimit(HttpServletRequest request) {
+        String clientIp = getClientIp(request);
+
+        Map<String, Object> rateLimitStatus = new HashMap<>();
+        rateLimitStatus.put("clientIp", clientIp);
+        rateLimitStatus.put("remainingAttempts", rateLimitService.getRemainingAttempts(clientIp));
+        rateLimitStatus.put("isAllowed", rateLimitService.isLoginAllowed(clientIp));
+
+        if (!rateLimitStatus.get("isAllowed").equals(true)) {
+            rateLimitStatus.put("retryAfterMinutes", rateLimitService.getTimeUntilNextAttemptMinutes(clientIp));
+        }
+
+        return ResponseEntity.ok(rateLimitStatus);
+    }
+
+    /**
+     * Utility method to extract client IP
+     */
+    private String getClientIp(HttpServletRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 }
