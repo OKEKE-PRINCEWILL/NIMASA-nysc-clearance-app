@@ -1,6 +1,7 @@
 
 package com.example.NIMASA.NYSC.Clearance.Form.SecurityService;
 
+import com.example.NIMASA.NYSC.Clearance.Form.DTOs.CurrentUserResponseDTO;
 import com.example.NIMASA.NYSC.Clearance.Form.model.CorpsMember;
 import com.example.NIMASA.NYSC.Clearance.Form.DTOs.AuthRequestDTO;
 import com.example.NIMASA.NYSC.Clearance.Form.DTOs.AuthResponseDTO;
@@ -374,5 +375,86 @@ public class UnifiedAuthService {
         admin.setLastPasswordChange(LocalDate.now());
 
         return employeeRepository.save(admin);
+    }
+    /**
+     * Get current authenticated user details
+     */
+    public CurrentUserResponseDTO getCurrentUser(HttpServletRequest request, String username) {
+        // Find the user (employee or corps member)
+        Optional<Employee> employeeOpt = employeeRepository.findByNameAndActive(username, true);
+
+        if (employeeOpt.isPresent()) {
+            Employee employee = employeeOpt.get();
+
+            // Extract tokens from cookies
+            String accessToken = extractAccessTokenFromCookie(request);
+
+            CurrentUserResponseDTO response = new CurrentUserResponseDTO();
+            response.setId(employee.getId());
+            response.setName(employee.getName());
+            response.setDepartment(employee.getDepartment());
+            response.setRole(employee.getRole());
+            response.setUserType("EMPLOYEE");
+            response.setActive(employee.isActive());
+            response.setCreatedAT(employee.getCreatedAt());
+            response.setLastPasswordChange(employee.getLastPasswordChange());
+
+            // Check if password is expired
+            boolean passwordExpired = employee.getLastPasswordChange().isBefore(LocalDate.now().minusMonths(3));
+            response.setPasswordExpired(passwordExpired);
+
+            // Token info
+            if (accessToken != null) {
+                long remainingMinutes = jwtService.getTokenRemainingTimeMinutes(accessToken);
+                response.setAccessTokenRemainingMinutes(remainingMinutes);
+            }
+
+            response.setRefreshTokenExpirationMs(jwtService.getRefreshTokenExpirationMs());
+
+            // Get active session count
+            long sessionCount = refreshTokenService.getActiveSessionCount(employee.getName());
+            response.setActiveSessionCount(sessionCount);
+
+            response.setAuthenticated(true);
+
+            return response;
+
+        } else {
+            // Check if it's a corps member
+            Optional<CorpsMember> corpsMemberOpt = corpsMemberRepository.findByNameAndActive(username, true);
+
+            if (corpsMemberOpt.isPresent()) {
+                CorpsMember corpsMember = corpsMemberOpt.get();
+
+                CurrentUserResponseDTO response = new CurrentUserResponseDTO();
+                response.setId(corpsMember.getId());
+                response.setName(corpsMember.getName());
+                response.setDepartment(corpsMember.getDepartment());
+                response.setRole(UserRole.CORPS_MEMBER);
+                response.setUserType("CORPS_MEMBER");
+                response.setActive(corpsMember.isActive());
+                response.setCreatedAT(corpsMember.getCreatedAt());
+                response.setAuthenticated(true);
+
+                // Corps members don't have sessions or password expiration
+                response.setPasswordExpired(false);
+                response.setActiveSessionCount(0);
+
+                return response;
+            }
+        }
+
+        throw new RuntimeException("User not found");
+    }
+
+    private String extractAccessTokenFromCookie(HttpServletRequest request) {
+        if (request.getCookies() == null) return null;
+
+        for (Cookie cookie : request.getCookies()) {
+            if ("accessToken".equals(cookie.getName())) {
+                return cookie.getValue();
+            }
+        }
+        return null;
     }
 }

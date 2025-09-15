@@ -247,5 +247,14 @@ public class JwtService {
                 .parseSignedClaims(token)
                 .getPayload();
     }
+    public long getTokenRemainingTimeMinutes(String token) {
+        try {
+            Date expiration = extractExpiration(token);
+            long remainingMs = expiration.getTime() - System.currentTimeMillis();
+            return Math.max(0, remainingMs / (1000 * 60)); // Convert to minutes
+        } catch (Exception e) {
+            return 0;
+        }
+    }
 
 }

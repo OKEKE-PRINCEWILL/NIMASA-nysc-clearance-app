@@ -83,7 +83,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/unified-auth/employee/**").authenticated()
                         .requestMatchers("/api/unified-auth/session/**").authenticated()
                         .requestMatchers("/api/unified-auth/logout").permitAll() // Allow logout without auth (clear cookies)
-
+                        .requestMatchers("/api/unified-auth/me").authenticated()
                         // Protected admin-only endpoints
                         .requestMatchers(HttpMethod.POST, "/api/clearance-forms/*/approve").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/clearance-forms/*/reject").authenticated()

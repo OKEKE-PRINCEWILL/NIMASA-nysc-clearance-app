@@ -13,6 +13,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -217,5 +219,32 @@ public class UnifiedAuthController {
             return xForwardedFor.split(",")[0].trim();
         }
         return request.getRemoteAddr();
+    }
+
+    @GetMapping("/me")
+    @Operation(summary = "Get current authenticated user details")
+    @SecurityRequirement(name = "Bearer Authentication")
+    public ResponseEntity<?> getCurrentUser(HttpServletRequest request) {
+        try {
+            // Get the authenticated user from security context
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+            if (authentication == null || !authentication.isAuthenticated()) {
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("error", "Not authenticated");
+                errorResponse.put("action", "login_required");
+                return ResponseEntity.status(401).body(errorResponse);
+            }
+
+            String username = authentication.getName();
+            CurrentUserResponseDTO currentUser = unifiedAuthService.getCurrentUser(request, username);
+
+            return ResponseEntity.ok(currentUser);
+
+        } catch (RuntimeException e) {
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
     }
 }
