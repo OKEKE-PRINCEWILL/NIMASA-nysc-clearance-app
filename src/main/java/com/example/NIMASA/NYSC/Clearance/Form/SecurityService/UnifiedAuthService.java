@@ -182,49 +182,79 @@ public class UnifiedAuthService {
         return authResponse;
     }
 
-    private void setAccessTokenCookie(HttpServletResponse response, String accessToken) {
-        Cookie accessCookie = new Cookie("accessToken", accessToken);
-        accessCookie.setHttpOnly(true);
-        accessCookie.setSecure(false);//secureCookies);
-        accessCookie.setPath("/");//"/api");
-        accessCookie.setMaxAge((int) (jwtService.getAccessTokenExpirationMs() / 1000));
-
-        // Set SameSite attribute
-//        String cookieHeader = String.format("%s=%s; Path=%s; HttpOnly; SameSite=None; Secure%s; Max-Age=%d",
+//    private void setAccessTokenCookie(HttpServletResponse response, String accessToken) {
+//        Cookie accessCookie = new Cookie("accessToken", accessToken);
+//        accessCookie.setHttpOnly(true);
+//        accessCookie.setSecure(secureCookies);
+//        accessCookie.setPath("/");
+//        accessCookie.setMaxAge((int) (jwtService.getAccessTokenExpirationMs() / 1000));
+//
+//        // Set SameSite attribute
+//        response.addHeader("Set-Cookie", String.format(
+//                "%s=%s; Path=%s; HttpOnly; SameSite=None; Secure; Max-Age=%d",
 //                accessCookie.getName(),
 //                accessCookie.getValue(),
-//                accessCookie.getPath(),
+//                "/",  // ← Change this too
+//                accessCookie.getMaxAge()
+//        ));
+//    }
+//    private void setRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
+//        Cookie refreshCookie = new Cookie("refreshToken", refreshToken);
+//        refreshCookie.setHttpOnly(true);
+//        refreshCookie.setSecure(secureCookies);
+//        refreshCookie.setPath("/api/unified-auth");  // Only for auth endpoints
+//        refreshCookie.setMaxAge((int) (jwtService.getRefreshTokenExpirationMs() / 1000));
+//
+//        // Set SameSite attribute
+//        String cookieHeader = String.format("%s=%s; Path=%s; HttpOnly; SameSite=%s%s; Max-Age=%d",
+//                refreshCookie.getName(),
+//                refreshCookie.getValue(),
+//                refreshCookie.getPath(),
 //                sameSite,
 //                secureCookies ? "; Secure" : "",
-//                accessCookie.getMaxAge());
+//                refreshCookie.getMaxAge());
 //
 //        response.addHeader("Set-Cookie", cookieHeader);
 //    }
+private void setAccessTokenCookie(HttpServletResponse response, String accessToken) {
+    boolean isProduction = !isLocalhost(); // implement isLocalhost() if needed
+
+    String sameSite = isProduction ? "None" : "Lax";
+    String secure = isProduction ? "; Secure" : "";
+
+    response.addHeader("Set-Cookie", String.format(
+            "%s=%s; Path=%s; HttpOnly; SameSite=%s%s; Max-Age=%d",
+            "accessToken",
+            accessToken,
+            "/",
+            sameSite,
+            secure,
+            (int) (jwtService.getAccessTokenExpirationMs() / 1000)
+    ));
+}
+
+    private void setRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
+        boolean isProduction = !isLocalhost();
+
+        String sameSite = isProduction ? "None" : "Lax";
+        String secure = isProduction ? "; Secure" : "";
+
         response.addHeader("Set-Cookie", String.format(
-                "%s=%s; Path=%s; HttpOnly; SameSite=Lax; Max-Age=%d",
-                accessCookie.getName(),
-                accessCookie.getValue(),
-                "/",
-//                accessCookie.getPath(),
-                accessCookie.getMaxAge()
+                "%s=%s; Path=%s; HttpOnly; SameSite=%s%s; Max-Age=%d",
+                "refreshToken",
+                refreshToken,
+                "/api/unified-auth",
+                sameSite,
+                secure,
+                (int) (jwtService.getRefreshTokenExpirationMs() / 1000)
         ));
     }
 
-    private void setRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
-        Cookie refreshCookie = new Cookie("refreshToken", refreshToken);
-        refreshCookie.setHttpOnly(true);
-        refreshCookie.setSecure(false);
-        refreshCookie.setPath("/api/unified-auth");  // Only for auth endpoints
-        refreshCookie.setMaxAge((int) (jwtService.getRefreshTokenExpirationMs() / 1000));
-
-        // Set SameSite attribute
-        response.addHeader("Set-Cookie", String.format(
-                "%s=%s; Path=%s; HttpOnly; SameSite=Lax; Max-Age=%d",
-                refreshCookie.getName(),
-                refreshCookie.getValue(),
-                refreshCookie.getPath(),
-                refreshCookie.getMaxAge()
-        ));
+    // Utility method to detect localhost
+    private boolean isLocalhost() {
+        // You can improve this based on your deployment setup
+        String env = System.getenv("ENVIRONMENT");
+        return env != null && env.equalsIgnoreCase("development");
     }
 
     private void clearAuthCookies(HttpServletResponse response) {
