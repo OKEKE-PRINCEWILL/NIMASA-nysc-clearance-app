@@ -19,7 +19,7 @@ public class CorsConfig {
         configuration.setAllowedOriginPatterns(Arrays.asList(
                 "http://localhost:3000",
                 "https://nimasa-nysc-clearance-app1.onrender.com",
-                "https://nimasa-nysc-clearance-portal.vercel.app/"
+                "https://nimasa-nysc-clearance-portal.vercel.app"
 
         ));
 

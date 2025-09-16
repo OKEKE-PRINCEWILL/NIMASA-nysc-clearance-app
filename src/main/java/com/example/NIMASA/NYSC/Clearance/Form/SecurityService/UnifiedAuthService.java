@@ -33,10 +33,10 @@ public class UnifiedAuthService {
     private final RefreshTokenService refreshTokenService;
     private final RateLimitService rateLimitService;
 
-    @Value("${security.cookie.secure:false}")
+    @Value("${security.cookie.secure:true}")
     private boolean secureCookies;
 
-    @Value("${security.cookie.same-site:Lax}")
+    @Value("${security.cookie.same-site:None}")
     private String sameSite;
 
     public AuthResponseDTO authenticate(AuthRequestDTO request, HttpServletRequest httpRequest, HttpServletResponse response) {
@@ -185,39 +185,46 @@ public class UnifiedAuthService {
     private void setAccessTokenCookie(HttpServletResponse response, String accessToken) {
         Cookie accessCookie = new Cookie("accessToken", accessToken);
         accessCookie.setHttpOnly(true);
-        accessCookie.setSecure(secureCookies);
-        accessCookie.setPath("/api");
+        accessCookie.setSecure(false);//secureCookies);
+        accessCookie.setPath("/");//"/api");
         accessCookie.setMaxAge((int) (jwtService.getAccessTokenExpirationMs() / 1000));
 
         // Set SameSite attribute
-        String cookieHeader = String.format("%s=%s; Path=%s; HttpOnly; SameSite=%s%s; Max-Age=%d",
+//        String cookieHeader = String.format("%s=%s; Path=%s; HttpOnly; SameSite=None; Secure%s; Max-Age=%d",
+//                accessCookie.getName(),
+//                accessCookie.getValue(),
+//                accessCookie.getPath(),
+//                sameSite,
+//                secureCookies ? "; Secure" : "",
+//                accessCookie.getMaxAge());
+//
+//        response.addHeader("Set-Cookie", cookieHeader);
+//    }
+        response.addHeader("Set-Cookie", String.format(
+                "%s=%s; Path=%s; HttpOnly; SameSite=Lax; Max-Age=%d",
                 accessCookie.getName(),
                 accessCookie.getValue(),
-                accessCookie.getPath(),
-                sameSite,
-                secureCookies ? "; Secure" : "",
-                accessCookie.getMaxAge());
-
-        response.addHeader("Set-Cookie", cookieHeader);
+                "/",
+//                accessCookie.getPath(),
+                accessCookie.getMaxAge()
+        ));
     }
 
     private void setRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
         Cookie refreshCookie = new Cookie("refreshToken", refreshToken);
         refreshCookie.setHttpOnly(true);
-        refreshCookie.setSecure(secureCookies);
+        refreshCookie.setSecure(false);
         refreshCookie.setPath("/api/unified-auth");  // Only for auth endpoints
         refreshCookie.setMaxAge((int) (jwtService.getRefreshTokenExpirationMs() / 1000));
 
         // Set SameSite attribute
-        String cookieHeader = String.format("%s=%s; Path=%s; HttpOnly; SameSite=%s%s; Max-Age=%d",
+        response.addHeader("Set-Cookie", String.format(
+                "%s=%s; Path=%s; HttpOnly; SameSite=Lax; Max-Age=%d",
                 refreshCookie.getName(),
                 refreshCookie.getValue(),
                 refreshCookie.getPath(),
-                sameSite,
-                secureCookies ? "; Secure" : "",
-                refreshCookie.getMaxAge());
-
-        response.addHeader("Set-Cookie", cookieHeader);
+                refreshCookie.getMaxAge()
+        ));
     }
 
     private void clearAuthCookies(HttpServletResponse response) {
