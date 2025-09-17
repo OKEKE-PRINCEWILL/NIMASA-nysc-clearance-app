@@ -142,7 +142,7 @@ public class ClearanceFormController {
 
             return ResponseEntity.ok(filteredForm);
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest().body((FilteredClearanceFormResponseDTO) result.getAllErrors());
 
         }
     }
