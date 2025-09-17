@@ -116,7 +116,10 @@ public class ClearanceFormController {
         return ResponseEntity.ok(filteredForms);
     }
 
-    @PostMapping("/{id}/supervisor-review")
+    @PostMapping(
+            value = "/{id}/supervisor-review",                  // your URL stays the same
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE      // 🟢 add this to explicitly tell Spring this endpoint accepts multipart
+    )
     public ResponseEntity<FilteredClearanceFormResponseDTO> submitSupervisorReview(
             @PathVariable Long id,
             @Valid @ModelAttribute SubmitSupervisorReviewDTO reviewDTO,
