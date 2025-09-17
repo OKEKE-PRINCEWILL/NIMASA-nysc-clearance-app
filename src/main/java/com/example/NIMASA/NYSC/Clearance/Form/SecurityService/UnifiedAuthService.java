@@ -126,34 +126,67 @@ public class UnifiedAuthService {
     /**
      * Logout user - revoke refresh tokens and clear cookies
      */
+//    public String logout(HttpServletRequest request, HttpServletResponse response, boolean logoutAllDevices) {
+//        String refreshToken = extractRefreshTokenFromCookie(request);
+//        int sessionsTerminated = 0;
+//
+//        if (refreshToken != null) {
+//            Optional<String> employeeNameOpt = refreshTokenService.validateRefreshToken(refreshToken);
+//            if (employeeNameOpt.isPresent()) {
+//                String employeeName = employeeNameOpt.get();
+//
+//                if (logoutAllDevices) {
+//                    // Logout from all devices
+//                    sessionsTerminated = refreshTokenService.revokeAllTokensForEmployee(employeeName);
+//                } else {
+//                    // Just revoke current refresh token family
+//                    RefreshToken currentToken = findCurrentRefreshToken(refreshToken);
+//                    if (currentToken != null) {
+//                        refreshTokenService.revokeTokenFamily(currentToken.getTokenFamily());
+//                        sessionsTerminated = 1;
+//                    }
+//                }
+//            }
+//        }
+//
+//        // Clear cookies
+//        clearAuthCookies(response);
+//
+//        return String.format("Logged out successfully. %d session(s) terminated.", sessionsTerminated);
+//    }
     public String logout(HttpServletRequest request, HttpServletResponse response, boolean logoutAllDevices) {
         String refreshToken = extractRefreshTokenFromCookie(request);
         int sessionsTerminated = 0;
 
         if (refreshToken != null) {
-            Optional<String> employeeNameOpt = refreshTokenService.validateRefreshToken(refreshToken);
-            if (employeeNameOpt.isPresent()) {
-                String employeeName = employeeNameOpt.get();
-
+            try {
                 if (logoutAllDevices) {
-                    // Logout from all devices
+                    // Extract username from JWT (fast - no database lookup needed)
+                    String employeeName = jwtService.extractUsername(refreshToken);
+
+                    // Logout from all devices for this user
                     sessionsTerminated = refreshTokenService.revokeAllTokensForEmployee(employeeName);
                 } else {
-                    // Just revoke current refresh token family
-                    RefreshToken currentToken = findCurrentRefreshToken(refreshToken);
-                    if (currentToken != null) {
-                        refreshTokenService.revokeTokenFamily(currentToken.getTokenFamily());
-                        sessionsTerminated = 1;
-                    }
+                    // Fast single session logout using token family
+                    sessionsTerminated = refreshTokenService.revokeSingleSession(refreshToken);
                 }
+            } catch (Exception e) {
+                // Even if token processing fails, clear cookies for security
+                System.err.println("Error during logout: " + e.getMessage());
+                sessionsTerminated = 0;
             }
         }
 
-        // Clear cookies
+        // Always clear cookies (fast operation)
         clearAuthCookies(response);
 
         return String.format("Logged out successfully. %d session(s) terminated.", sessionsTerminated);
     }
+
+    /**
+     * Helper method: Remove the findCurrentRefreshToken method as it's no longer needed
+     * The new approach extracts token family directly from JWT without database lookup
+     */
 
     private AuthResponseDTO createEmployeeSuccessResponse(Employee employee, HttpServletRequest request, HttpServletResponse response) {
         // Generate token family for this login session
