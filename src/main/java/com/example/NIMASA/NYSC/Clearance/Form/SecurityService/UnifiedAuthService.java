@@ -1,14 +1,13 @@
 
 package com.example.NIMASA.NYSC.Clearance.Form.SecurityService;
 
-import com.example.NIMASA.NYSC.Clearance.Form.DTOs.CurrentUserResponseDTO;
+import com.example.NIMASA.NYSC.Clearance.Form.DTOs.*;
+import com.example.NIMASA.NYSC.Clearance.Form.FormStatus;
 import com.example.NIMASA.NYSC.Clearance.Form.model.CorpsMember;
-import com.example.NIMASA.NYSC.Clearance.Form.DTOs.AuthRequestDTO;
-import com.example.NIMASA.NYSC.Clearance.Form.DTOs.AuthResponseDTO;
-import com.example.NIMASA.NYSC.Clearance.Form.DTOs.RefreshTokenResponseDTO;
 import com.example.NIMASA.NYSC.Clearance.Form.model.Employee;
 import com.example.NIMASA.NYSC.Clearance.Form.Enums.UserRole;
 import com.example.NIMASA.NYSC.Clearance.Form.model.RefreshToken;
+import com.example.NIMASA.NYSC.Clearance.Form.repository.ClearanceRepository;
 import com.example.NIMASA.NYSC.Clearance.Form.repository.CorpsMemberRepository;
 import com.example.NIMASA.NYSC.Clearance.Form.repository.EmployeeRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +19,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -28,6 +28,7 @@ public class UnifiedAuthService {
 
     private final EmployeeRepository employeeRepository;
     private final CorpsMemberRepository corpsMemberRepository;
+    private final ClearanceRepository clearanceRepository;
     private final BCryptPasswordEncoder encoder;
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
@@ -215,56 +216,23 @@ public class UnifiedAuthService {
         return authResponse;
     }
 
-//    private void setAccessTokenCookie(HttpServletResponse response, String accessToken) {
-//        Cookie accessCookie = new Cookie("accessToken", accessToken);
-//        accessCookie.setHttpOnly(true);
-//        accessCookie.setSecure(secureCookies);
-//        accessCookie.setPath("/");
-//        accessCookie.setMaxAge((int) (jwtService.getAccessTokenExpirationMs() / 1000));
-//
-//        // Set SameSite attribute
-//        response.addHeader("Set-Cookie", String.format(
-//                "%s=%s; Path=%s; HttpOnly; SameSite=None; Secure; Max-Age=%d",
-//                accessCookie.getName(),
-//                accessCookie.getValue(),
-//                "/",  // ← Change this too
-//                accessCookie.getMaxAge()
-//        ));
-//    }
-//    private void setRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
-//        Cookie refreshCookie = new Cookie("refreshToken", refreshToken);
-//        refreshCookie.setHttpOnly(true);
-//        refreshCookie.setSecure(secureCookies);
-//        refreshCookie.setPath("/api/unified-auth");  // Only for auth endpoints
-//        refreshCookie.setMaxAge((int) (jwtService.getRefreshTokenExpirationMs() / 1000));
-//
-//        // Set SameSite attribute
-//        String cookieHeader = String.format("%s=%s; Path=%s; HttpOnly; SameSite=%s%s; Max-Age=%d",
-//                refreshCookie.getName(),
-//                refreshCookie.getValue(),
-//                refreshCookie.getPath(),
-//                sameSite,
-//                secureCookies ? "; Secure" : "",
-//                refreshCookie.getMaxAge());
-//
-//        response.addHeader("Set-Cookie", cookieHeader);
-//    }
-private void setAccessTokenCookie(HttpServletResponse response, String accessToken) {
-    boolean isProduction = !isLocalhost(); // implement isLocalhost() if needed
 
-    String sameSite = isProduction ? "None" : "Lax";
-    String secure = isProduction ? "; Secure" : "";
+    private void setAccessTokenCookie(HttpServletResponse response, String accessToken) {
+        boolean isProduction = !isLocalhost(); // implement isLocalhost() if needed
 
-    response.addHeader("Set-Cookie", String.format(
-            "%s=%s; Path=%s; HttpOnly; SameSite=%s%s; Max-Age=%d",
-            "accessToken",
-            accessToken,
-            "/",
-            sameSite,
-            secure,
-            (int) (jwtService.getAccessTokenExpirationMs() / 1000)
-    ));
-}
+        String sameSite = isProduction ? "None" : "Lax";
+        String secure = isProduction ? "; Secure" : "";
+
+        response.addHeader("Set-Cookie", String.format(
+                "%s=%s; Path=%s; HttpOnly; SameSite=%s%s; Max-Age=%d",
+                "accessToken",
+                accessToken,
+                "/",
+                sameSite,
+                secure,
+                (int) (jwtService.getAccessTokenExpirationMs() / 1000)
+        ));
+    }
 
     private void setRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
         boolean isProduction = !isLocalhost();
@@ -391,6 +359,85 @@ private void setAccessTokenCookie(HttpServletResponse response, String accessTok
         return response;
     }
 
+    public List<EmployeeListResponseDTO> getEmployeeList() {
+        List<Employee> employees = employeeRepository.findAll().stream()
+                .filter(emp -> emp.getRole() == UserRole.SUPERVISOR || emp.getRole() == UserRole.HOD)
+                .toList();
+
+        return employees.stream().map(employee -> {
+            EmployeeListResponseDTO dto = new EmployeeListResponseDTO();
+            dto.setId(employee.getId());
+            dto.setName(employee.getName());
+            dto.setDepartment(employee.getDepartment());
+            dto.setUserRole(employee.getRole());
+            dto.setActive(employee.isActive());
+            dto.setCreatedAT(employee.getCreatedAt());
+            dto.setLastPasswordChange(employee.getLastPasswordChange());
+
+            // Check if password is expired (older than 3 months)
+            boolean passwordExpired = employee.getLastPasswordChange()
+                    .isBefore(LocalDate.now().minusMonths(3));
+            dto.setPasswordExpired(passwordExpired);
+
+            // Get count of pending forms for this employee
+            long pendingCount = getPendingFormsCount(employee);
+            dto.setFormPendingReview(pendingCount);
+
+            return dto;
+        }).toList();
+
+    }
+
+    public Employee deactivateEmployeeByName(String employeeName, String adminName, String reason){
+        Employee employee= employeeRepository.findByName(employeeName)
+                .orElseThrow(() -> new RuntimeException("Employee not found"));
+
+        if (employee.getRole()== UserRole.ADMIN){
+            throw new RuntimeException("Cannot deactivate admin users");
+        }
+
+
+        if (employee.getRole() != UserRole.SUPERVISOR && employee.getRole() != UserRole.HOD) {
+            throw new RuntimeException("Can only deactivate employees with SUPERVISOR or HOD roles");
+        }
+
+
+        long pendingForms = getPendingFormsCount(employee);
+        if (pendingForms > 0) {
+            throw new RuntimeException(
+                    String.format("Cannot deactivate %s. They have %d pending forms to review. " +
+                                    "Please reassign or complete these reviews first.",
+                            employee.getName(), pendingForms));
+        }
+
+        employee.setActive(false);
+        Employee savedEmployee = employeeRepository.save(employee);
+/*/look*/
+        refreshTokenService.revokeAllTokensForEmployee(employee.getName());
+
+        System.out.println(String.format(
+                "[EMPLOYEE_DEACTIVATION] Employee Name: %s, (Role: %s, Department: %s) deactivated by admin '%s'. Reason: %s. Time: %s",
+                employeeName, employee.getName(), employee.getRole(), employee.getDepartment(),
+                adminName, reason != null ? reason : "Not provided", LocalDate.now()
+        ));
+        return savedEmployee;
+    }
+
+    private long getPendingFormsCount(Employee employee) {
+        // You'll need to inject ClearanceRepository here or create a service method
+        switch (employee.getRole()) {
+            case SUPERVISOR:
+                // Count forms with PENDING_SUPERVISOR status in their department
+                return clearanceRepository.countByStatusAndDepartment(
+                        FormStatus.PENDING_SUPERVISOR, employee.getDepartment());
+            case HOD:
+                // Count forms with PENDING_HOD status in their department
+                return clearanceRepository.countByStatusAndDepartment(
+                        FormStatus.PENDING_HOD, employee.getDepartment());
+            default:
+                return 0;
+        }
+    }
     // Existing employee management methods remain unchanged
     public Employee addEmployee(String name, String password, String department, UserRole role) {
         if (employeeRepository.existsByName(name)) {
@@ -446,6 +493,7 @@ private void setAccessTokenCookie(HttpServletResponse response, String accessTok
 
         return employeeRepository.save(admin);
     }
+
     /**
      * Get current authenticated user details
      */

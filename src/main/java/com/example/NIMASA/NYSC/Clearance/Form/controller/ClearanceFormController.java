@@ -11,6 +11,7 @@ import com.example.NIMASA.NYSC.Clearance.Form.model.ClearanceForm;
 import com.example.NIMASA.NYSC.Clearance.Form.service.SignatureService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
@@ -37,10 +38,15 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/clearance-forms")
 @RequiredArgsConstructor
+@Tag(
+        name = "Clearance Form Endpoint",
+        description = "Manages NYSC clearance forms including submission, reviews, approvals, rejections, searches, exports, and retrieval of pending/approved forms. Role-based access is enforced."
+)
+
 public class ClearanceFormController {
 
     private final ClearanceFormService clearanceFormService;
-//    private final ApprovedSupervisorsRepo approvedSupervisorsRepo;
+    //    private final ApprovedSupervisorsRepo approvedSupervisorsRepo;
 //    private final ApprovedHodRepo approvedHodRepo;
     private final ResponseFilterService responseFilterService;
     private final SignatureService signatureService;
@@ -59,6 +65,8 @@ public class ClearanceFormController {
 
 
     @PostMapping("/submission")
+    @Operation(
+            summary = "Submit new clearance form (Corps Member)")
     public ResponseEntity<CorpsMemberFormResponseDTO> createForm(@Valid @RequestBody CorpsMemberFormRequestDTO requestDTO) {
         ClearanceForm form = new ClearanceForm();
         form.setCorpsName(requestDTO.getCorpsName());
@@ -79,6 +87,8 @@ public class ClearanceFormController {
 
 
     @GetMapping("/{id}")
+    @Operation(
+            summary = "Get clearance form by ID")
     public ResponseEntity<FilteredClearanceFormResponseDTO> getFormById(
             @PathVariable Long id,
             @RequestParam(value = "role", required = false) String roleParam) {
@@ -93,6 +103,8 @@ public class ClearanceFormController {
     }
 
     @GetMapping
+    @Operation(
+            summary = "Get all clearance forms")
     public ResponseEntity<List<FilteredClearanceFormResponseDTO>> getAllForms(
             @RequestParam(value = "role", required = false) String roleParam) {
 
@@ -105,6 +117,8 @@ public class ClearanceFormController {
 
     // Role based status filtering
     @GetMapping("/status/{status}")
+    @Operation(
+            summary = "Get clearance forms by status")
     public ResponseEntity<List<FilteredClearanceFormResponseDTO>> getByStatus(
             @PathVariable FormStatus status,
             @RequestParam(value = "role", required = false) String roleParam) {
@@ -120,6 +134,11 @@ public class ClearanceFormController {
             value = "/{id}/supervisor-review",                  // your URL stays the same
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE      // 🟢 add this to explicitly tell Spring this endpoint accepts multipart
     )
+    @Operation(
+            summary = "Submit supervisor review id is for the forms",
+            description = "Supervisor reviews a clearance form by providing remarks, days absent, and a digital signature. Form status is updated accordingly."
+    )
+
     public ResponseEntity<FilteredClearanceFormResponseDTO> submitSupervisorReview(
             @PathVariable Long id,
             @Valid @ModelAttribute SubmitSupervisorReviewDTO reviewDTO,
@@ -142,12 +161,17 @@ public class ClearanceFormController {
 
             return ResponseEntity.ok(filteredForm);
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body((FilteredClearanceFormResponseDTO) result.getAllErrors());
+            return ResponseEntity.badRequest().build();
 
         }
     }
 
     @PostMapping("/{id}/hod-review")
+    @Operation(
+            summary = "Submit HOD review id is for the forms",
+            description = "Head of Department reviews a clearance form by providing remarks and a signature. Updates the form status for further processing."
+    )
+
     public ResponseEntity<FilteredClearanceFormResponseDTO> submitHodReview(
             @PathVariable Long id,
             @Valid @ModelAttribute SubmitHodReviewDTO reviewDTO,
@@ -171,6 +195,11 @@ public class ClearanceFormController {
 
 
     @GetMapping("/pending")
+    @Operation(
+            summary = "Get pending forms for logged-in user",
+            description = "Retrieves clearance forms that are pending review for the authenticated user (Supervisor, HOD, or Admin). Role and department are derived from authentication."
+    )
+
     public ResponseEntity<List<FilteredClearanceFormResponseDTO>> getPendingFormsForUser(
             @RequestParam(value = "role", required = false) String roleParam) {
 
@@ -205,6 +234,11 @@ public class ClearanceFormController {
     }
 
     @GetMapping("/pending/count")
+    @Operation(
+            summary = "Get pending form count for logged-in user",
+            description = "Returns the number of pending clearance forms assigned to the authenticated user based on their role and department."
+    )
+
     public ResponseEntity<Map<String, Object>> getPendingCountForUser(){
         try{
             Authentication authentication= SecurityContextHolder.getContext().getAuthentication();
@@ -236,6 +270,11 @@ public class ClearanceFormController {
     }
 
     @PostMapping("/{id}/approve")
+    @Operation(
+            summary = "Approve clearance id is for the forms (Admin only)",
+            description = "Allows an authenticated admin to approve a clearance form. The admin’s name is logged as the approver."
+    )
+
     public ResponseEntity<?> approveForm(
             @PathVariable Long id,
             @Valid @RequestBody AdminApprovalAndRejectDTO approval) {
@@ -265,6 +304,11 @@ public class ClearanceFormController {
     }
 
     @PostMapping("/{id}/reject")
+    @Operation(
+            summary = "Reject clearance id is for the forms (Admin only)",
+            description = "Allows an authenticated admin to reject a clearance form. The admin’s name is logged as the rejector."
+    )
+
     public ResponseEntity<?> rejectForm(
             @PathVariable Long id,
             @Valid @RequestBody AdminApprovalAndRejectDTO reject) {
@@ -294,6 +338,11 @@ public class ClearanceFormController {
     }
 
     @DeleteMapping("/{id}")
+    @Operation(
+            summary = "Delete clearance form id is for the forms(Admin only)",
+            description = "Allows an authenticated admin to permanently delete a clearance form. An optional reason for deletion may be included."
+    )
+
     public ResponseEntity<?> deleteForm(
             @PathVariable Long id,
             @Valid @RequestBody(required = false) DeleteFormDTO deleteRequest) {
@@ -342,6 +391,11 @@ public class ClearanceFormController {
 
     // Search endpoints with role filtering
     @GetMapping("/search/corps")
+    @Operation(
+            summary = "Search clearance forms by corps member",
+            description = "Finds clearance forms submitted by a specific corps member. Supports role-based filtering of results."
+    )
+
     public ResponseEntity<List<FilteredClearanceFormResponseDTO>> getCorpsMember(
             @RequestBody CorpsMemberFormRequestDTO corpsMemberDTO,
             @RequestParam(value = "role", required = false) String roleParam) {
@@ -354,6 +408,11 @@ public class ClearanceFormController {
     }
 
     @GetMapping("/search/supervisor/{supervisorName}")
+    @Operation(
+            summary = "Search clearance forms by supervisor name",
+            description = "Finds clearance forms reviewed by a given supervisor. Supports role-based filtering."
+    )
+
     public ResponseEntity<List<FilteredClearanceFormResponseDTO>> getSupervisor(
             @PathVariable String supervisorName,
             @RequestParam(value = "role", required = false) String roleParam) {
@@ -366,6 +425,11 @@ public class ClearanceFormController {
     }
 
     @GetMapping("/search/hod/{hodName}")
+    @Operation(
+            summary = "Search clearance forms by HOD name",
+            description = "Finds clearance forms reviewed by a given Head of Department. Supports role-based filtering."
+    )
+
     public ResponseEntity<List<FilteredClearanceFormResponseDTO>> getHodName(
             @PathVariable String hodName,
             @RequestParam(value = "role", required = false) String roleParam) {
@@ -379,6 +443,11 @@ public class ClearanceFormController {
 
     // Utility endpoints
     @GetMapping("/{id}/exists")
+    @Operation(
+            summary = "Check if clearance form exists",
+            description = "Returns whether a clearance form with the given ID exists in the system."
+    )
+
     public ResponseEntity<Map<String, Object>> checkFormExists(@PathVariable Long id) {
         boolean exists = clearanceFormService.formExists(id);
         Map<String, Object> response = new HashMap<>();
@@ -388,12 +457,22 @@ public class ClearanceFormController {
     }
 
     @GetMapping("/count/{status}")
+    @Operation(
+            summary = "Count clearance forms by status",
+            description = "Returns the total number of clearance forms in the system for the specified status."
+    )
+
     public ResponseEntity<Long> countByStatus(@PathVariable FormStatus status) {
         return ResponseEntity.ok(clearanceFormService.countFormsByStatus(status));
     }
 
     // Date range search with role filtering
     @GetMapping("/search/date-range")
+    @Operation(
+            summary = "Search clearance forms by date range",
+            description = "Finds clearance forms submitted within a given start and end date. Supports role-based filtering."
+    )
+
     public ResponseEntity<List<FilteredClearanceFormResponseDTO>> getFormsBetweenDates(
             @RequestParam String startDate,
             @RequestParam String endDate,
@@ -410,6 +489,11 @@ public class ClearanceFormController {
     }
     // New endpoint for corps members to get printable approved forms
     @GetMapping("/{id}/printable")
+    @Operation(
+            summary = "Get printable approved form (Corps Member)",
+            description = "Allows a corps member to download their approved clearance form in a printable format."
+    )
+
     public ResponseEntity<PrintableFormResponseDTO> getPrintableForm(
             @PathVariable Long id,
             @RequestParam("corpsName") String corpsName) {
@@ -419,6 +503,11 @@ public class ClearanceFormController {
                 .orElse(ResponseEntity.notFound().build());
     }
     @GetMapping("/signatures/{filename}")
+    @Operation(
+            summary = "Fetch signature file",
+            description = "Retrieves a supervisor or HOD’s uploaded signature file (PNG, JPG, or PDF) by filename."
+    )
+
     public ResponseEntity<ByteArrayResource> getSignatureFile(@PathVariable String filename) {
         try {
             byte[] fileData = signatureService.getSignatureFile(filename);
@@ -437,6 +526,11 @@ public class ClearanceFormController {
     }
     // New endpoint to get all approved forms for a specific corps member
     @GetMapping("/approved/corps/{corpsName}")
+    @Operation(
+            summary = "Get all approved forms for a corps member",
+            description = "Fetches all approved clearance forms for a specific corps member in a printable format."
+    )
+
     public ResponseEntity<List<PrintableFormResponseDTO>> getApprovedFormsForCorpsMember(
             @PathVariable String corpsName) {
 

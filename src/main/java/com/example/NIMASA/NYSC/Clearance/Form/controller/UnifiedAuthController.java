@@ -2,9 +2,12 @@
 package com.example.NIMASA.NYSC.Clearance.Form.controller;
 
 import com.example.NIMASA.NYSC.Clearance.Form.DTOs.*;
+import com.example.NIMASA.NYSC.Clearance.Form.Enums.UserRole;
 import com.example.NIMASA.NYSC.Clearance.Form.SecurityService.UnifiedAuthService;
 import com.example.NIMASA.NYSC.Clearance.Form.SecurityService.RateLimitService;
 import com.example.NIMASA.NYSC.Clearance.Form.model.Employee;
+import com.example.NIMASA.NYSC.Clearance.Form.repository.EmployeeRepository;
+import com.example.NIMASA.NYSC.Clearance.Form.securityModel.EmployeePrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,7 +21,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -30,6 +35,7 @@ public class UnifiedAuthController {
 
     private final UnifiedAuthService unifiedAuthService;
     private final RateLimitService rateLimitService;
+    private final EmployeeRepository employeeRepository;
 
     @PostMapping("/login")
     @Operation(summary = "Secure login with dual token system")
@@ -90,6 +96,40 @@ public class UnifiedAuthController {
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
+    @GetMapping("/admin/employees/employeeList")
+    @Operation(summary = "Get list of supervisors and HODs for admin management",
+            description = "Returns a list of employees with SUPERVISOR and HOD roles that can be managed by admin")
+
+
+    @SecurityRequirement(name= "Bearer Authentication")
+    public ResponseEntity<?> getEmployeeList(){
+        try{
+            Authentication authentication= SecurityContextHolder.getContext().getAuthentication();
+            if(authentication== null || !authentication.isAuthenticated()){
+                return ResponseEntity.status(401).body("Authentication is required");
+            }
+
+            EmployeePrincipal principal= (EmployeePrincipal) authentication.getPrincipal();
+            if(principal.getEmployee().getRole()!= UserRole.ADMIN){
+                return ResponseEntity.status(403).body("Access denied. Only Admin roles can access");
+            }
+            List<EmployeeListResponseDTO> employeeList = unifiedAuthService.getEmployeeList();
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("employees", employeeList);
+            response.put("totalCount", employeeList.size());
+            response.put("supervisorCount", employeeList.stream()
+                    .mapToLong(emp -> emp.getUserRole() == UserRole.SUPERVISOR ? 1 : 0).sum());
+            response.put("hodCount", employeeList.stream()
+                    .mapToLong(emp -> emp.getUserRole() == UserRole.HOD ? 1 : 0).sum());
+
+            return ResponseEntity.ok(response);
+        }
+        catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body("Failed to retrieve employees: " + e.getMessage());
+        }
+
+    }
 
     @PostMapping("/employee/add")
     @Operation(summary = "Add new employee (Admin only)")
@@ -136,25 +176,66 @@ public class UnifiedAuthController {
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
-
-    @PostMapping("/employee/deactivate")
-    @Operation(summary = "Deactivate employee (Admin only)")
+    @PostMapping("/employee/{name}/deactivate")
+    @Operation(
+            summary = "Deactivate employee by name (Admin only)",
+            description = "Allows an authenticated admin to deactivate a supervisor or HOD employee. The admin's name is logged as the deactivator."
+    )
     @SecurityRequirement(name = "Bearer Authentication")
-    public ResponseEntity<?> deactivateEmployee(@RequestParam String name) {
+    public ResponseEntity<?> deactivateEmployeeByName(
+            @PathVariable String name,
+            @Valid @RequestBody DeactivateEmployeeDTO dto){
         try {
-            unifiedAuthService.deactivateEmployee(name);
+            // Get authenticated user
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated()) {
+                return ResponseEntity.status(401).body("Authentication required");
+            }
+            EmployeePrincipal principal = (EmployeePrincipal) authentication.getPrincipal();
+            if (principal.getEmployee().getRole() != UserRole.ADMIN) {
+                return ResponseEntity.status(403).body("Access denied. Admin role required.");
+            }
+            String adminName = principal.getEmployee().getName();
 
-            Map<String, String> response = new HashMap<>();
+            if (adminName.equals(name)){
+                return ResponseEntity.badRequest().body("Cannot deactivate an admin or your own account");
+            }
+            Employee deactivatedEmployeeByName= unifiedAuthService.deactivateEmployeeByName(name, adminName, dto.getReason());
+            Map<String, Object> response = new HashMap<>();
             response.put("message", "Employee deactivated successfully");
             response.put("employeeName", name);
+            //response.put("employeeName", deactivatedEmployee.getName());
+            response.put("employeeRole", deactivatedEmployeeByName.getRole());
+            response.put("employeeDepartment", deactivatedEmployeeByName.getDepartment());
+            response.put("deactivatedBy", adminName);
+            response.put("reason", dto.getReason());
+            response.put("timestamp", LocalDate.now());
 
             return ResponseEntity.ok(response);
-        } catch (RuntimeException e) {
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Failed to deactivate employee: " + e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
+        }
+        catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body("Deactivation failed: " + e.getMessage());
         }
     }
+
+//    @PostMapping("/employee/deactivate")
+//    @Operation(summary = "Deactivate employee (Admin only)")
+//    @SecurityRequirement(name = "Bearer Authentication")
+//    public ResponseEntity<?> deactivateEmployee(@RequestParam AddEmployeeDTO) {
+//        try {
+//            unifiedAuthService.deactivateEmployee(name);
+//
+//            Map<String, String> response = new HashMap<>();
+//            response.put("message", "Employee deactivated successfully");
+//            response.put("employeeName", name);
+//
+//            return ResponseEntity.ok(response);
+//        } catch (RuntimeException e) {
+//            Map<String, String> errorResponse = new HashMap<>();
+//            errorResponse.put("error", "Failed to deactivate employee: " + e.getMessage());
+//            return ResponseEntity.badRequest().body(errorResponse);
+//        }
+//    }
 
     @PostMapping("/bootstrap/initial-admin")
     @Operation(summary = "Create initial admin - only works if no employees exist")
@@ -244,6 +325,45 @@ public class UnifiedAuthController {
         } catch (RuntimeException e) {
             Map<String, String> errorResponse = new HashMap<>();
             errorResponse.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
+
+    @GetMapping("/admin/employees/stats")
+    @Operation(summary = "Get employee statistics for admin dashboard")
+    @SecurityRequirement(name = "Bearer Authentication")
+    public ResponseEntity<?> getEmployeeStats() {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated()) {
+                return ResponseEntity.status(401).body(Map.of("error", "Authentication required"));
+            }
+            EmployeePrincipal principal = (EmployeePrincipal) authentication.getPrincipal();
+            if (principal.getEmployee().getRole() != UserRole.ADMIN) {
+                return ResponseEntity.status(403).body(Map.of("error", "Access denied. Admin role required."));
+            }
+            List<Employee> allEmployees = employeeRepository.findAll();
+
+            Map<String, Object> stats = new HashMap<>();
+            stats.put("totalEmployees", allEmployees.size());
+            stats.put("activeEmployees", allEmployees.stream().mapToLong(emp -> emp.isActive() ? 1 : 0).sum());
+            stats.put("inactiveEmployees", allEmployees.stream().mapToLong(emp -> !emp.isActive() ? 1 : 0).sum());
+            stats.put("supervisors", allEmployees.stream().mapToLong(emp -> emp.getRole() == UserRole.SUPERVISOR ? 1 : 0).sum());
+            stats.put("hods", allEmployees.stream().mapToLong(emp -> emp.getRole() == UserRole.HOD ? 1 : 0).sum());
+            stats.put("admins", allEmployees.stream().mapToLong(emp -> emp.getRole() == UserRole.ADMIN ? 1 : 0).sum());
+
+            // Count employees with expired passwords
+            long expiredPasswords = allEmployees.stream()
+                    .mapToLong(emp -> emp.getLastPasswordChange().isBefore(LocalDate.now().minusMonths(3)) ? 1 : 0)
+                    .sum();
+            stats.put("employeesWithExpiredPasswords", expiredPasswords);
+
+            return ResponseEntity.ok(stats);
+
+        }
+        catch (Exception e) {
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Failed to retrieve stats: " + e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
