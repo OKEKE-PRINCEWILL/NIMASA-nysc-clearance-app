@@ -412,7 +412,7 @@ public class UnifiedAuthService {
 
         employee.setActive(false);
         Employee savedEmployee = employeeRepository.save(employee);
-/*/look*/
+        /*/look*/
         refreshTokenService.revokeAllTokensForEmployee(employee.getName());
 
         System.out.println(String.format(
