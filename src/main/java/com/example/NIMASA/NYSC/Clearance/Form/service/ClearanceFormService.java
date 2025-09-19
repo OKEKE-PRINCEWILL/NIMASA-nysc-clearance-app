@@ -272,7 +272,7 @@ public class ClearanceFormService {
                 return clearanceRepo.findByStatusAndDepartment(FormStatus.PENDING_HOD, userDepartment);
 
             case ADMIN:
-                return clearanceRepo.findByStatusAndDepartment(FormStatus.PENDING_ADMIN, userDepartment);
+                return clearanceRepo.findByStatus(FormStatus.PENDING_ADMIN);
 
             case CORPS_MEMBER:
                 return List.of();
@@ -292,7 +292,7 @@ public class ClearanceFormService {
                 return clearanceRepo.countByStatusAndDepartment(FormStatus.PENDING_HOD, userDepartment );
 
             case ADMIN:
-                return clearanceRepo.countByStatusAndDepartment(FormStatus.PENDING_ADMIN, userDepartment);
+                return clearanceRepo.countByStatus(FormStatus.PENDING_ADMIN);
 
             case CORPS_MEMBER:
                 return 0L;
