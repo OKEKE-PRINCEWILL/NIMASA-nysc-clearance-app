@@ -218,25 +218,6 @@ public class UnifiedAuthController {
         }
     }
 
-//    @PostMapping("/employee/deactivate")
-//    @Operation(summary = "Deactivate employee (Admin only)")
-//    @SecurityRequirement(name = "Bearer Authentication")
-//    public ResponseEntity<?> deactivateEmployee(@RequestParam AddEmployeeDTO) {
-//        try {
-//            unifiedAuthService.deactivateEmployee(name);
-//
-//            Map<String, String> response = new HashMap<>();
-//            response.put("message", "Employee deactivated successfully");
-//            response.put("employeeName", name);
-//
-//            return ResponseEntity.ok(response);
-//        } catch (RuntimeException e) {
-//            Map<String, String> errorResponse = new HashMap<>();
-//            errorResponse.put("error", "Failed to deactivate employee: " + e.getMessage());
-//            return ResponseEntity.badRequest().body(errorResponse);
-//        }
-//    }
-
     @PostMapping("/bootstrap/initial-admin")
     @Operation(summary = "Create initial admin - only works if no employees exist")
     public ResponseEntity<?> createInitialAdmin() {
