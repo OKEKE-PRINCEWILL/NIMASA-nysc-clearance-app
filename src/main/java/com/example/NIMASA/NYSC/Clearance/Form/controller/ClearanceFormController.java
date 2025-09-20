@@ -30,10 +30,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/clearance-forms")
@@ -90,7 +87,7 @@ public class ClearanceFormController {
     @Operation(
             summary = "Get clearance form by ID")
     public ResponseEntity<FilteredClearanceFormResponseDTO> getFormById(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             @RequestParam(value = "role", required = false) String roleParam) {
 
         return clearanceFormService.getFormById(id)
@@ -140,7 +137,7 @@ public class ClearanceFormController {
     )
 
     public ResponseEntity<FilteredClearanceFormResponseDTO> submitSupervisorReview(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             @Valid @ModelAttribute SubmitSupervisorReviewDTO reviewDTO,
             BindingResult result,
             @RequestParam(value = "role", required = false) String roleParam) {
@@ -173,7 +170,7 @@ public class ClearanceFormController {
     )
 
     public ResponseEntity<FilteredClearanceFormResponseDTO> submitHodReview(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             @Valid @ModelAttribute SubmitHodReviewDTO reviewDTO,
             @RequestParam(value = "role", required = false) String roleParam) {
 
@@ -276,7 +273,7 @@ public class ClearanceFormController {
     )
 
     public ResponseEntity<?> approveForm(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             @Valid @RequestBody AdminApprovalAndRejectDTO approval) {
 
         try {
@@ -310,7 +307,7 @@ public class ClearanceFormController {
     )
 
     public ResponseEntity<?> rejectForm(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             @Valid @RequestBody AdminApprovalAndRejectDTO reject) {
 
         try {
@@ -344,7 +341,7 @@ public class ClearanceFormController {
     )
 
     public ResponseEntity<?> deleteForm(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             @Valid @RequestBody(required = false) DeleteFormDTO deleteRequest) {
 
         try {
@@ -448,7 +445,7 @@ public class ClearanceFormController {
             description = "Returns whether a clearance form with the given ID exists in the system."
     )
 
-    public ResponseEntity<Map<String, Object>> checkFormExists(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> checkFormExists(@PathVariable UUID id) {
         boolean exists = clearanceFormService.formExists(id);
         Map<String, Object> response = new HashMap<>();
         response.put("formId", id);
@@ -495,7 +492,7 @@ public class ClearanceFormController {
     )
 
     public ResponseEntity<PrintableFormResponseDTO> getPrintableForm(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             @RequestParam("corpsName") String corpsName) {
 
         return clearanceFormService.getPrintableForm(id, corpsName)

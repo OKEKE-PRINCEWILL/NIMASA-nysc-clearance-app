@@ -5,8 +5,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
-public interface CorpsMemberRepository extends JpaRepository<CorpsMember, Long> {
+public interface CorpsMemberRepository extends JpaRepository<CorpsMember, UUID> {
 
     Optional<CorpsMember> findByNameAndActive(String name, boolean active);
 

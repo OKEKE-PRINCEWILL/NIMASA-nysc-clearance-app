@@ -7,9 +7,10 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Repository
-public interface ClearanceRepository extends JpaRepository<ClearanceForm, Long> {
+public interface ClearanceRepository extends JpaRepository<ClearanceForm, UUID> {
 
     List<ClearanceForm> findByStatus(FormStatus status);
 
@@ -28,5 +29,7 @@ public interface ClearanceRepository extends JpaRepository<ClearanceForm, Long> 
     List<ClearanceForm> findByStatusAndDepartment(FormStatus status, String department);
 
     long countByStatusAndDepartment(FormStatus status, String department);
+
+    List<ClearanceForm> findByAdminName(String adminName);
 }
 

@@ -1,4 +1,3 @@
-
 package com.example.NIMASA.NYSC.Clearance.Form.controller;
 
 import com.example.NIMASA.NYSC.Clearance.Form.DTOs.*;
@@ -8,13 +7,17 @@ import com.example.NIMASA.NYSC.Clearance.Form.SecurityService.RateLimitService;
 import com.example.NIMASA.NYSC.Clearance.Form.model.Employee;
 import com.example.NIMASA.NYSC.Clearance.Form.repository.EmployeeRepository;
 import com.example.NIMASA.NYSC.Clearance.Form.securityModel.EmployeePrincipal;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -25,7 +28,23 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
+/**
+ * UNIFIED AUTH CONTROLLER
+ * -------------------------------------------------------------
+ * This is the "entry point" for authentication and employee
+ * management endpoints.
+ *
+ * Responsibilities:
+ *   - Login / Refresh / Logout
+ *   - Get current user info
+ *   - Admin-only employee management (add, editing, deactivate, stats)
+ *   - Rate limit monitoring
+ *
+ * Think of this as the "reception desk" that routes requests
+ * to the UnifiedAuthService (the brain).
+ */
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/unified-auth")
@@ -37,6 +56,10 @@ public class UnifiedAuthController {
     private final RateLimitService rateLimitService;
     private final EmployeeRepository employeeRepository;
 
+    // ============================================================
+    // AUTHENTICATION ENDPOINTS
+    // ============================================================
+
     @PostMapping("/login")
     @Operation(summary = "Secure login with dual token system")
     public ResponseEntity<?> login(@Valid @RequestBody AuthRequestDTO request,
@@ -46,7 +69,7 @@ public class UnifiedAuthController {
             AuthResponseDTO authResponse = unifiedAuthService.authenticate(request, httpRequest, response);
             return ResponseEntity.ok(authResponse);
         } catch (RuntimeException e) {
-            // Include rate limiting info in error response
+            // Include rate limit info in error response
             String clientIp = getClientIp(httpRequest);
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("error", e.getMessage());
@@ -69,10 +92,10 @@ public class UnifiedAuthController {
             RefreshTokenResponseDTO refreshResponse = unifiedAuthService.refreshAccessToken(request, response);
             return ResponseEntity.ok(refreshResponse);
         } catch (RuntimeException e) {
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", e.getMessage());
-            errorResponse.put("action", "login_required");
-            return ResponseEntity.status(401).body(errorResponse);
+            return ResponseEntity.status(401).body(Map.of(
+                    "error", e.getMessage(),
+                    "action", "login_required"
+            ));
         }
     }
 
@@ -85,50 +108,89 @@ public class UnifiedAuthController {
             boolean logoutAllDevices = logoutRequest != null && logoutRequest.isLogoutAllDevices();
             String message = unifiedAuthService.logout(request, response, logoutAllDevices);
 
-            Map<String, Object> logoutResponse = new HashMap<>();
-            logoutResponse.put("message", message);
-            logoutResponse.put("loggedOutFromAllDevices", logoutAllDevices);
-
-            return ResponseEntity.ok(logoutResponse);
+            return ResponseEntity.ok(Map.of(
+                    "message", message,
+                    "loggedOutFromAllDevices", logoutAllDevices
+            ));
         } catch (Exception e) {
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Logout failed: " + e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Logout failed: " + e.getMessage()
+            ));
         }
     }
+
+    // ============================================================
+    // USER INFO ENDPOINTS
+    // ============================================================
+
+    @GetMapping("/me")
+    @Operation(summary = "Get current authenticated user details")
+    @SecurityRequirement(name = "Bearer Authentication")
+    public ResponseEntity<?> getCurrentUser(HttpServletRequest request) {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+            if (authentication == null || !authentication.isAuthenticated()) {
+                return ResponseEntity.status(401).body(Map.of(
+                        "error", "Not authenticated",
+                        "action", "login_required"
+                ));
+            }
+
+            String username = authentication.getName();
+            CurrentUserResponseDTO currentUser = unifiedAuthService.getCurrentUser(request, username);
+
+            return ResponseEntity.ok(currentUser);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/session/info")
+    @Operation(summary = "Get current session information")
+    @SecurityRequirement(name = "Bearer Authentication")
+    public ResponseEntity<?> getSessionInfo(HttpServletRequest request) {
+        try {
+            return ResponseEntity.ok(Map.of(
+                    "message", "Session active",
+                    "timestamp", System.currentTimeMillis()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body(Map.of("error", "Session expired"));
+        }
+    }
+
+    // ============================================================
+    // ADMIN → EMPLOYEE MANAGEMENT
+    // ============================================================
+
     @GetMapping("/admin/employees/employeeList")
-    @Operation(summary = "Get list of supervisors and HODs for admin management",
-            description = "Returns a list of employees with SUPERVISOR and HOD roles that can be managed by admin")
-
-
+    @Operation(summary = "Get list of supervisors and HODs for admin management")
     @SecurityRequirement(name= "Bearer Authentication")
-    public ResponseEntity<?> getEmployeeList(){
-        try{
-            Authentication authentication= SecurityContextHolder.getContext().getAuthentication();
-            if(authentication== null || !authentication.isAuthenticated()){
+    public ResponseEntity<?> getEmployeeList() {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated()) {
                 return ResponseEntity.status(401).body("Authentication is required");
             }
 
-            EmployeePrincipal principal= (EmployeePrincipal) authentication.getPrincipal();
-            if(principal.getEmployee().getRole()!= UserRole.ADMIN){
+            EmployeePrincipal principal = (EmployeePrincipal) authentication.getPrincipal();
+            if (principal.getEmployee().getRole() != UserRole.ADMIN) {
                 return ResponseEntity.status(403).body("Access denied. Only Admin roles can access");
             }
+
             List<EmployeeListResponseDTO> employeeList = unifiedAuthService.getEmployeeList();
 
             Map<String, Object> response = new HashMap<>();
             response.put("employees", employeeList);
             response.put("totalCount", employeeList.size());
-            response.put("supervisorCount", employeeList.stream()
-                    .mapToLong(emp -> emp.getUserRole() == UserRole.SUPERVISOR ? 1 : 0).sum());
-            response.put("hodCount", employeeList.stream()
-                    .mapToLong(emp -> emp.getUserRole() == UserRole.HOD ? 1 : 0).sum());
+            response.put("supervisorCount", employeeList.stream().filter(emp -> emp.getUserRole() == UserRole.SUPERVISOR).count());
+            response.put("hodCount", employeeList.stream().filter(emp -> emp.getUserRole() == UserRole.HOD).count());
 
             return ResponseEntity.ok(response);
-        }
-        catch (RuntimeException e) {
+        } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body("Failed to retrieve employees: " + e.getMessage());
         }
-
     }
 
     @PostMapping("/employee/add")
@@ -142,171 +204,143 @@ public class UnifiedAuthController {
                     employeeDTO.getDepartment(),
                     employeeDTO.getRole()
             );
+            employee.setPassword(null); // Hide password
 
-            // Don't return password
-            employee.setPassword(null);
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("message", "Employee added successfully");
-            response.put("employee", employee);
-
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(Map.of(
+                    "message", "Employee added successfully",
+                    "employee", employee
+            ));
         } catch (RuntimeException e) {
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Failed to add employee: " + e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Failed to add employee: " + e.getMessage()
+            ));
         }
     }
-
-    @PostMapping("/employee/change-password")
-    @Operation(summary = "Change employee password")
+    @PatchMapping("/employee/{id}/edit")
+    @Operation(summary = "Edit employee  details(password, department, role")
     @SecurityRequirement(name = "Bearer Authentication")
-    public ResponseEntity<?> changeEmployeePassword(@Valid @RequestBody ChangePasswordDTO dto) {
+    public ResponseEntity<?> editEmployee(@PathVariable UUID id, @RequestBody EditEmployeeDTO dto){
         try {
-            unifiedAuthService.changeEmployeePassword(dto.getUsername(), dto.getNewPassword());
-
-            Map<String, String> response = new HashMap<>();
-            response.put("message", "Password changed successfully");
-            response.put("username", dto.getUsername());
-
-            return ResponseEntity.ok(response);
-        } catch (RuntimeException e) {
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Password change failed: " + e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
-    }
-    @PostMapping("/employee/{name}/deactivate")
-    @Operation(
-            summary = "Deactivate employee by name (Admin only)",
-            description = "Allows an authenticated admin to deactivate a supervisor or HOD employee. The admin's name is logged as the deactivator."
-    )
-    @SecurityRequirement(name = "Bearer Authentication")
-    public ResponseEntity<?> deactivateEmployeeByName(
-            @PathVariable String name,
-            @Valid @RequestBody DeactivateEmployeeDTO dto){
-        try {
-            // Get authenticated user
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             if (authentication == null || !authentication.isAuthenticated()) {
                 return ResponseEntity.status(401).body("Authentication required");
             }
+
             EmployeePrincipal principal = (EmployeePrincipal) authentication.getPrincipal();
             if (principal.getEmployee().getRole() != UserRole.ADMIN) {
                 return ResponseEntity.status(403).body("Access denied. Admin role required.");
             }
-            String adminName = principal.getEmployee().getName();
+            Employee updated= unifiedAuthService.editEmployee(id,dto);
+            updated.setPassword(null);
 
-            if (adminName.equals(name)){
-                return ResponseEntity.badRequest().body("Cannot deactivate an admin or your own account");
-            }
-            Employee deactivatedEmployeeByName= unifiedAuthService.deactivateEmployeeByName(name, adminName, dto.getReason());
             Map<String, Object> response = new HashMap<>();
-            response.put("message", "Employee deactivated successfully");
-            response.put("employeeName", name);
-            //response.put("employeeName", deactivatedEmployee.getName());
-            response.put("employeeRole", deactivatedEmployeeByName.getRole());
-            response.put("employeeDepartment", deactivatedEmployeeByName.getDepartment());
-            response.put("deactivatedBy", adminName);
-            response.put("reason", dto.getReason());
-            response.put("timestamp", LocalDate.now());
+            response.put("message", "Employee updated successfully");
+            response.put("employee", updated);
 
             return ResponseEntity.ok(response);
-        }
-        catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body("Deactivation failed: " + e.getMessage());
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body("Editing Failed: " + e.getMessage());
         }
     }
+
+//    @PostMapping("/employee/change-password")
+//    @Operation(summary = "Change employee password")
+//    @SecurityRequirement(name = "Bearer Authentication")
+//    public ResponseEntity<?> changeEmployeePassword(@Valid @RequestBody ChangePasswordDTO dto) {
+//        try {
+//            unifiedAuthService.changeEmployeePassword(dto.getUsername(), dto.getNewPassword());
+//            return ResponseEntity.ok(Map.of(
+//                    "message", "Password changed successfully",
+//                    "username", dto.getUsername()
+//            ));
+//        } catch (RuntimeException e) {
+//            return ResponseEntity.badRequest().body(Map.of(
+//                    "error", "Password change failed: " + e.getMessage()
+//            ));
+//        }
+//    }
+
+    @PostMapping("/employee/{id}/deactivate")
+    @Operation(summary = "Deactivate employee(Admin only)")
+    @SecurityRequirement(name = "Bearer Authentication")
+    public ResponseEntity<?> deactivateEmployee(@PathVariable UUID id,
+                                                @RequestBody DeactivateEmployeeDTO dto) {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated()) {
+                return ResponseEntity.status(401).body("Authentication required");
+            }
+
+            EmployeePrincipal principal = (EmployeePrincipal) authentication.getPrincipal();
+            if (principal.getEmployee().getRole() != UserRole.ADMIN) {
+                return ResponseEntity.status(403).body("Access denied. Admin role required.");
+            }
+            Employee deactivated = unifiedAuthService.deactivateEmployee(id,principal.getEmployee().getName(),dto.getReason());
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Employee deactivated successfully");
+            response.put("employee", deactivated);
+
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body("Deactivation Failes: " + e.getMessage());
+        }
+
+    }
+//    @PostMapping("/employee/{name}/deactivate")
+//    @Operation(summary = "Deactivate employee by name (Admin only)")
+//    @SecurityRequirement(name = "Bearer Authentication")
+//    public ResponseEntity<?> deactivateEmployeeByName(@PathVariable String name,
+//                                                      @Valid @RequestBody DeactivateEmployeeDTO dto) {
+//        try {
+//            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+//            if (authentication == null || !authentication.isAuthenticated()) {
+//                return ResponseEntity.status(401).body("Authentication required");
+//            }
+//
+//            EmployeePrincipal principal = (EmployeePrincipal) authentication.getPrincipal();
+//            if (principal.getEmployee().getRole() != UserRole.ADMIN) {
+//                return ResponseEntity.status(403).body("Access denied. Admin role required.");
+//            }
+//
+//            String adminName = principal.getEmployee().getName();
+//            if (adminName.equals(name)) {
+//                return ResponseEntity.badRequest().body("Cannot deactivate an admin or your own account");
+//            }
+//
+//            Employee deactivated = unifiedAuthService.deactivateEmployeeByName(name, adminName, dto.getReason());
+//
+//            return ResponseEntity.ok(Map.of(
+//                    "message", "Employee deactivated successfully",
+//                    "employeeName", name,
+//                    "employeeRole", deactivated.getRole(),
+//                    "employeeDepartment", deactivated.getDepartment(),
+//                    "deactivatedBy", adminName,
+//                    "reason", dto.getReason(),
+//                    "timestamp", LocalDate.now()
+//            ));
+//        } catch (RuntimeException e) {
+//            return ResponseEntity.badRequest().body("Deactivation failed: " + e.getMessage());
+//        }
+//    }
 
     @PostMapping("/bootstrap/initial-admin")
     @Operation(summary = "Create initial admin - only works if no employees exist")
     public ResponseEntity<?> createInitialAdmin() {
         try {
             Employee admin = unifiedAuthService.createInitialAdmin();
-            admin.setPassword(null); // Don't return password
+            admin.setPassword(null); // Hide password
 
-            Map<String, Object> response = new HashMap<>();
-            response.put("message", "Initial admin created successfully");
-            response.put("admin", admin);
-            response.put("defaultPassword", "admin123");
-            response.put("warning", "Please change the default password immediately!");
-
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(Map.of(
+                    "message", "Initial admin created successfully",
+                    "admin", admin,
+                    "defaultPassword", "admin123",
+                    "warning", "Please change the default password immediately!"
+            ));
         } catch (RuntimeException e) {
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Failed to create initial admin: " + e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
-    }
-
-    @GetMapping("/session/info")
-    @Operation(summary = "Get current session information")
-    @SecurityRequirement(name = "Bearer Authentication")
-    public ResponseEntity<?> getSessionInfo(HttpServletRequest request) {
-        try {
-            // This endpoint would provide session info for authenticated users
-            Map<String, Object> sessionInfo = new HashMap<>();
-            sessionInfo.put("message", "Session active");
-            sessionInfo.put("timestamp", System.currentTimeMillis());
-
-            return ResponseEntity.ok(sessionInfo);
-        } catch (Exception e) {
-            return ResponseEntity.status(401).body(Map.of("error", "Session expired"));
-        }
-    }
-
-    @PostMapping("/rate-limit/status")
-    @Operation(summary = "Check rate limit status for current IP")
-    public ResponseEntity<?> checkRateLimit(HttpServletRequest request) {
-        String clientIp = getClientIp(request);
-
-        Map<String, Object> rateLimitStatus = new HashMap<>();
-        rateLimitStatus.put("clientIp", clientIp);
-        rateLimitStatus.put("remainingAttempts", rateLimitService.getRemainingAttempts(clientIp));
-        rateLimitStatus.put("isAllowed", rateLimitService.isLoginAllowed(clientIp));
-
-        if (!rateLimitStatus.get("isAllowed").equals(true)) {
-            rateLimitStatus.put("retryAfterMinutes", rateLimitService.getTimeUntilNextAttemptMinutes(clientIp));
-        }
-
-        return ResponseEntity.ok(rateLimitStatus);
-    }
-
-    /**
-     * Utility method to extract client IP
-     */
-    private String getClientIp(HttpServletRequest request) {
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-            return xForwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
-    }
-
-    @GetMapping("/me")
-    @Operation(summary = "Get current authenticated user details")
-    @SecurityRequirement(name = "Bearer Authentication")
-    public ResponseEntity<?> getCurrentUser(HttpServletRequest request) {
-        try {
-            // Get the authenticated user from security context
-            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-
-            if (authentication == null || !authentication.isAuthenticated()) {
-                Map<String, String> errorResponse = new HashMap<>();
-                errorResponse.put("error", "Not authenticated");
-                errorResponse.put("action", "login_required");
-                return ResponseEntity.status(401).body(errorResponse);
-            }
-
-            String username = authentication.getName();
-            CurrentUserResponseDTO currentUser = unifiedAuthService.getCurrentUser(request, username);
-
-            return ResponseEntity.ok(currentUser);
-
-        } catch (RuntimeException e) {
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Failed to create initial admin: " + e.getMessage()
+            ));
         }
     }
 
@@ -319,33 +353,63 @@ public class UnifiedAuthController {
             if (authentication == null || !authentication.isAuthenticated()) {
                 return ResponseEntity.status(401).body(Map.of("error", "Authentication required"));
             }
+
             EmployeePrincipal principal = (EmployeePrincipal) authentication.getPrincipal();
             if (principal.getEmployee().getRole() != UserRole.ADMIN) {
                 return ResponseEntity.status(403).body(Map.of("error", "Access denied. Admin role required."));
             }
+
             List<Employee> allEmployees = employeeRepository.findAll();
 
             Map<String, Object> stats = new HashMap<>();
             stats.put("totalEmployees", allEmployees.size());
-            stats.put("activeEmployees", allEmployees.stream().mapToLong(emp -> emp.isActive() ? 1 : 0).sum());
-            stats.put("inactiveEmployees", allEmployees.stream().mapToLong(emp -> !emp.isActive() ? 1 : 0).sum());
-            stats.put("supervisors", allEmployees.stream().mapToLong(emp -> emp.getRole() == UserRole.SUPERVISOR ? 1 : 0).sum());
-            stats.put("hods", allEmployees.stream().mapToLong(emp -> emp.getRole() == UserRole.HOD ? 1 : 0).sum());
-            stats.put("admins", allEmployees.stream().mapToLong(emp -> emp.getRole() == UserRole.ADMIN ? 1 : 0).sum());
-
-            // Count employees with expired passwords
-            long expiredPasswords = allEmployees.stream()
-                    .mapToLong(emp -> emp.getLastPasswordChange().isBefore(LocalDate.now().minusMonths(3)) ? 1 : 0)
-                    .sum();
-            stats.put("employeesWithExpiredPasswords", expiredPasswords);
+            stats.put("activeEmployees", allEmployees.stream().filter(Employee::isActive).count());
+            stats.put("inactiveEmployees", allEmployees.stream().filter(emp -> !emp.isActive()).count());
+            stats.put("supervisors", allEmployees.stream().filter(emp -> emp.getRole() == UserRole.SUPERVISOR).count());
+            stats.put("hods", allEmployees.stream().filter(emp -> emp.getRole() == UserRole.HOD).count());
+            stats.put("admins", allEmployees.stream().filter(emp -> emp.getRole() == UserRole.ADMIN).count());
+            stats.put("employeesWithExpiredPasswords", allEmployees.stream()
+                    .filter(emp -> emp.getLastPasswordChange().isBefore(LocalDate.now().minusMonths(3)))
+                    .count());
 
             return ResponseEntity.ok(stats);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Failed to retrieve stats: " + e.getMessage()
+            ));
+        }
+    }
 
+    // ============================================================
+    // RATE LIMIT INFO
+    // ============================================================
+
+    @PostMapping("/rate-limit/status")
+    @Operation(summary = "Check rate limit status for current IP")
+    public ResponseEntity<?> checkRateLimit(HttpServletRequest request) {
+        String clientIp = getClientIp(request);
+
+        Map<String, Object> rateLimitStatus = new HashMap<>();
+        rateLimitStatus.put("clientIp", clientIp);
+        rateLimitStatus.put("remainingAttempts", rateLimitService.getRemainingAttempts(clientIp));
+        rateLimitStatus.put("isAllowed", rateLimitService.isLoginAllowed(clientIp));
+
+        if (!rateLimitService.isLoginAllowed(clientIp)) {
+            rateLimitStatus.put("retryAfterMinutes", rateLimitService.getTimeUntilNextAttemptMinutes(clientIp));
         }
-        catch (Exception e) {
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Failed to retrieve stats: " + e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
+
+        return ResponseEntity.ok(rateLimitStatus);
+    }
+
+    // ============================================================
+    // UTILITY
+    // ============================================================
+
+    private String getClientIp(HttpServletRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            return xForwardedFor.split(",")[0].trim();
         }
+        return request.getRemoteAddr();
     }
 }

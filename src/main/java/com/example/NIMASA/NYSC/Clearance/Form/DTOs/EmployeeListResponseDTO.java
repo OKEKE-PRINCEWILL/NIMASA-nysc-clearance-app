@@ -6,12 +6,13 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 public class EmployeeListResponseDTO {
-    private Long id;
+    private UUID id;
     private String name;
     private String department;
     private UserRole userRole;

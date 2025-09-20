@@ -7,13 +7,14 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class FilteredClearanceFormResponseDTO {
-    private Long id;
+    private UUID id;
     private String corpsName;
     private String stateCode;
     private String department;

@@ -7,13 +7,14 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 public class CurrentUserResponseDTO {
     //Common fields for all users
-    private Long id;
+    private UUID id;
     private  String name;
     private String department;
     private UserRole role;

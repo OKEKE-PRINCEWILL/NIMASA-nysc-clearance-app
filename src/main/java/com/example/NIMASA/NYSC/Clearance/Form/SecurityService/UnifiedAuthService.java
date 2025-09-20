@@ -1,34 +1,51 @@
-
 package com.example.NIMASA.NYSC.Clearance.Form.SecurityService;
 
 import com.example.NIMASA.NYSC.Clearance.Form.DTOs.*;
 import com.example.NIMASA.NYSC.Clearance.Form.FormStatus;
+import com.example.NIMASA.NYSC.Clearance.Form.Enums.UserRole;
 import com.example.NIMASA.NYSC.Clearance.Form.model.CorpsMember;
 import com.example.NIMASA.NYSC.Clearance.Form.model.Employee;
-import com.example.NIMASA.NYSC.Clearance.Form.Enums.UserRole;
 import com.example.NIMASA.NYSC.Clearance.Form.model.RefreshToken;
 import com.example.NIMASA.NYSC.Clearance.Form.repository.ClearanceRepository;
 import com.example.NIMASA.NYSC.Clearance.Form.repository.CorpsMemberRepository;
 import com.example.NIMASA.NYSC.Clearance.Form.repository.EmployeeRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.stereotype.Service;
+
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+import lombok.RequiredArgsConstructor;
+import org.apache.catalina.User;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.stereotype.Service;
+
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * UNIFIED AUTH SERVICE
+ * -------------------------------------------------------------
+ * This service is the "brain" for authentication in our system.
+ * It handles:
+ *   - Employee login/logout (with JWT + refresh tokens)
+ *   - Corps member login (simpler, no password)
+ *   - Token rotation + cookie management
+ *   - Employee management (add, deactivate, password change)
+ *   - Quick in-memory cache to speed up repeated logins
+ *
+ * Think of this as the "gatekeeper" for NIMASA’s Clearance System.
+ */
 @Service
 @RequiredArgsConstructor
 public class UnifiedAuthService {
 
+    // ========== DEPENDENCIES ==========
     private final EmployeeRepository employeeRepository;
     private final CorpsMemberRepository corpsMemberRepository;
     private final ClearanceRepository clearanceRepository;
@@ -37,17 +54,23 @@ public class UnifiedAuthService {
     private final RefreshTokenService refreshTokenService;
     private final RateLimitService rateLimitService;
 
+    // Cookie rules (from application.properties / yml)
     @Value("${security.cookie.secure:true}")
     private boolean secureCookies;
 
     @Value("${security.cookie.same-site:None}")
     private String sameSite;
 
-    // OPTIMIZATION: Simple cache to avoid repeated DB queries for recent authentications
+    // ========== CACHING ==========
+    // We keep a 5-minute cache of recently authenticated employees
+    // This avoids hitting the DB on every single login attempt.
     private final Map<String, CachedEmployeeData> quickCache = new ConcurrentHashMap<>();
     private static final long CACHE_DURATION_MS = 300000; // 5 minutes
 
-    // Cache data structure
+    /**
+     * Tiny class to wrap cached employee data.
+     * Stores the employee + when it was cached.
+     */
     private static class CachedEmployeeData {
         final Employee employee;
         final long timestamp;
@@ -62,42 +85,47 @@ public class UnifiedAuthService {
         }
     }
 
-    // OPTIMIZED AUTHENTICATION METHOD
-    public AuthResponseDTO authenticate(AuthRequestDTO request, HttpServletRequest httpRequest, HttpServletResponse response) {
+    // ============================================================
+    // AUTHENTICATION FLOW
+    // ============================================================
+
+    /**
+     * Main login method.
+     * 1. Checks rate limiting (blocks brute force).
+     * 2. Tries to fetch employee from cache or DB.
+     * 3. If not employee → checks corps member login.
+     */
+    public AuthResponseDTO authenticate(AuthRequestDTO request,
+                                        HttpServletRequest httpRequest,
+                                        HttpServletResponse response) {
         String clientIp = getClientIp(httpRequest);
 
-        // FAST: Rate limiting check (in-memory operation)
+        // Protect system: stop too many wrong attempts
         if (!rateLimitService.isLoginAllowed(clientIp)) {
             throw new RuntimeException("Too many login attempts. Please try again later.");
         }
 
         try {
-            // OPTIMIZATION 1: Check cache first to avoid DB query
+            // Step 1: try cache
             String cacheKey = request.getName().toLowerCase().trim();
             CachedEmployeeData cached = quickCache.get(cacheKey);
 
             if (cached != null && !cached.isExpired()) {
-                // Use cached data for faster authentication
                 return authenticateFromCache(cached.employee, request, httpRequest, response, clientIp);
             }
 
-            // OPTIMIZATION 2: Parallel database queries for better performance
-            CompletableFuture<Optional<Employee>> employeeQuery = CompletableFuture.supplyAsync(() ->
-                    employeeRepository.findByNameAndActive(request.getName(), true)
-            );
+            // Step 2: query DB for employee
+            CompletableFuture<Optional<Employee>> employeeQuery =
+                    CompletableFuture.supplyAsync(() -> employeeRepository.findByNameAndActive(request.getName(), true));
 
-            // For corps members, we only query if it's explicitly a corps member request
             Optional<Employee> employeeOpt = employeeQuery.join();
 
             if (employeeOpt.isPresent()) {
                 Employee employee = employeeOpt.get();
-
-                // Cache the employee for future quick access
                 quickCache.put(cacheKey, new CachedEmployeeData(employee));
-
                 return authenticateFromCache(employee, request, httpRequest, response, clientIp);
             } else {
-                // Handle corps member authentication (fast path)
+                // Step 3: fallback → corps member login
                 return handleCorpsMember(request);
             }
 
@@ -107,61 +135,173 @@ public class UnifiedAuthService {
         }
     }
 
-    // OPTIMIZED: Fast authentication using cached or fresh employee data
-    private AuthResponseDTO authenticateFromCache(Employee employee, AuthRequestDTO request,
-                                                  HttpServletRequest httpRequest, HttpServletResponse response, String clientIp) {
-
-        // FAST: Check if password was provided
+    /**
+     * Validate employee login (using cached or fresh DB record).
+     */
+    private AuthResponseDTO authenticateFromCache(Employee employee,
+                                                  AuthRequestDTO request,
+                                                  HttpServletRequest httpRequest,
+                                                  HttpServletResponse response,
+                                                  String clientIp) {
+        // Password required
         if (request.getPassword() == null || request.getPassword().trim().isEmpty()) {
             return createPasswordRequiredResponse(employee);
         }
 
-        // OPTIMIZED: Password validation (this is the main bottleneck, but unavoidable)
+        // Check password
         if (!encoder.matches(request.getPassword(), employee.getPassword())) {
             rateLimitService.recordFailedLogin(clientIp);
             throw new RuntimeException("Invalid password. Please provide the correct password.");
         }
 
-        // FAST: Password expiration check (simple date comparison)
+        // Force password change every 3 months
         if (employee.getLastPasswordChange().isBefore(LocalDate.now().minusMonths(3))) {
             throw new RuntimeException("Password has expired. Please change your password.");
         }
 
-        // SUCCESS: Reset rate limit and generate tokens
+        // All good → reset limiter + issue tokens
         rateLimitService.recordSuccessfulLogin(clientIp);
         return createEmployeeSuccessResponse(employee, httpRequest, response);
     }
 
     /**
-     * Refresh access token using refresh token from cookie
+     * Corps members have no password. They are auto-registered on first login.
+     */
+    private AuthResponseDTO handleCorpsMember(AuthRequestDTO request) {
+        if (request.getRole() != UserRole.CORPS_MEMBER) {
+            throw new RuntimeException("Access denied. Only employees can have " + request.getRole() + " role.");
+        }
+
+        Optional<CorpsMember> existing = corpsMemberRepository.findByNameAndActive(request.getName(), true);
+
+        if (existing.isPresent()) {
+            return createCorpsMemberResponse(existing.get(), false);
+        } else {
+            CorpsMember newCorpsMember = new CorpsMember();
+            newCorpsMember.setName(request.getName());
+            newCorpsMember.setDepartment(request.getDepartment());
+            newCorpsMember.setActive(true);
+            newCorpsMember.setCreatedAt(LocalDate.now());
+
+            CorpsMember saved = corpsMemberRepository.save(newCorpsMember);
+            return createCorpsMemberResponse(saved, true);
+        }
+    }
+
+    // ============================================================
+    // USER INFO
+    // ============================================================
+
+    /**
+     * Get details of whoever is logged in (employee or corps).
+     * Useful for dashboards showing "current user".
+     */
+    public CurrentUserResponseDTO getCurrentUser(HttpServletRequest request, String username) {
+        // First check employee
+        Optional<Employee> employeeOpt = employeeRepository.findByNameAndActive(username, true);
+
+        if (employeeOpt.isPresent()) {
+            Employee employee = employeeOpt.get();
+            String accessToken = extractAccessTokenFromCookie(request);
+
+            CurrentUserResponseDTO response = new CurrentUserResponseDTO();
+            response.setId(employee.getId());
+            response.setName(employee.getName());
+            response.setDepartment(employee.getDepartment());
+            response.setRole(employee.getRole());
+            response.setUserType("EMPLOYEE");
+            response.setActive(employee.isActive());
+            response.setCreatedAT(employee.getCreatedAt());
+            response.setLastPasswordChange(employee.getLastPasswordChange());
+
+            // Expired password?
+            response.setPasswordExpired(employee.getLastPasswordChange().isBefore(LocalDate.now().minusMonths(3)));
+
+            // Token + session info
+            if (accessToken != null) {
+                long remainingMinutes = jwtService.getTokenRemainingTimeMinutes(accessToken);
+                response.setAccessTokenRemainingMinutes(remainingMinutes);
+            }
+            response.setRefreshTokenExpirationMs(jwtService.getRefreshTokenExpirationMs());
+            response.setActiveSessionCount(refreshTokenService.getActiveSessionCount(employee.getName()));
+            response.setAuthenticated(true);
+
+            return response;
+
+        } else {
+            // If not employee, check corps member
+            Optional<CorpsMember> corpsOpt = corpsMemberRepository.findByNameAndActive(username, true);
+
+            if (corpsOpt.isPresent()) {
+                CorpsMember corpsMember = corpsOpt.get();
+
+                CurrentUserResponseDTO response = new CurrentUserResponseDTO();
+                response.setId(corpsMember.getId());
+                response.setName(corpsMember.getName());
+                response.setDepartment(corpsMember.getDepartment());
+                response.setRole(UserRole.CORPS_MEMBER);
+                response.setUserType("CORPS_MEMBER");
+                response.setActive(corpsMember.isActive());
+                response.setCreatedAT(corpsMember.getCreatedAt());
+                response.setAuthenticated(true);
+
+                response.setPasswordExpired(false); // corps never expire
+                response.setActiveSessionCount(0);  // corps have no sessions
+
+                return response;
+            }
+        }
+
+        throw new RuntimeException("User not found");
+    }
+
+    // ============================================================
+    // LOGOUT + REFRESH TOKENS
+    // ============================================================
+
+    /**
+     * Logout → clears cookies and optionally all sessions.
+     */
+    public String logout(HttpServletRequest request, HttpServletResponse response, boolean logoutAllDevices) {
+        String refreshToken = extractRefreshTokenFromCookie(request);
+        int sessionsTerminated = 0;
+
+        if (refreshToken != null) {
+            try {
+                if (logoutAllDevices) {
+                    String employeeName = jwtService.extractUsername(refreshToken);
+                    sessionsTerminated = refreshTokenService.revokeAllTokensForEmployee(employeeName);
+                } else {
+                    sessionsTerminated = refreshTokenService.revokeSingleSession(refreshToken);
+                }
+            } catch (Exception e) {
+                System.err.println("Error during logout: " + e.getMessage());
+            }
+        }
+
+        clearAuthCookies(response);
+        return String.format("Logged out successfully. %d session(s) terminated.", sessionsTerminated);
+    }
+
+    /**
+     * Refresh access token using refresh token from cookie.
+     * Classic JWT rotation flow.
      */
     public RefreshTokenResponseDTO refreshAccessToken(HttpServletRequest request, HttpServletResponse response) {
-        // Extract refresh token from cookie
         String refreshToken = extractRefreshTokenFromCookie(request);
-        if (refreshToken == null) {
-            throw new RuntimeException("Refresh token not found");
-        }
+        if (refreshToken == null) throw new RuntimeException("Refresh token not found");
 
-        // Validate refresh token
         Optional<String> employeeNameOpt = refreshTokenService.validateRefreshToken(refreshToken);
-        if (employeeNameOpt.isEmpty()) {
-            throw new RuntimeException("Invalid refresh token");
-        }
+        if (employeeNameOpt.isEmpty()) throw new RuntimeException("Invalid refresh token");
 
         String employeeName = employeeNameOpt.get();
-
-        // Get employee details
         Employee employee = employeeRepository.findByNameAndActive(employeeName, true)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 
-        // Rotate refresh token (security best practice)
         String deviceInfo = extractDeviceInfo(request);
         RefreshToken newRefreshToken = refreshTokenService.rotateRefreshToken(refreshToken, deviceInfo);
-
-        // Generate new access token
         String newAccessToken = jwtService.generateAccessToken(employeeName);
 
-        // Set both tokens as cookies
         setAccessTokenCookie(response, newAccessToken);
         setRefreshTokenCookie(response, generateTokenForCookie(newRefreshToken));
 
@@ -173,208 +313,11 @@ public class UnifiedAuthService {
         );
     }
 
-    /**
-     * OPTIMIZED: Fast logout using JWT token family extraction
-     */
-    public String logout(HttpServletRequest request, HttpServletResponse response, boolean logoutAllDevices) {
-        String refreshToken = extractRefreshTokenFromCookie(request);
-        int sessionsTerminated = 0;
+    // ============================================================
+    // EMPLOYEE MANAGEMENT (Add, Passwords, Deactivate, etc.)
+    // ============================================================
 
-        if (refreshToken != null) {
-            try {
-                if (logoutAllDevices) {
-                    // Extract username from JWT (fast - no database lookup needed)
-                    String employeeName = jwtService.extractUsername(refreshToken);
-
-                    // Logout from all devices for this user
-                    sessionsTerminated = refreshTokenService.revokeAllTokensForEmployee(employeeName);
-                } else {
-                    // Fast single session logout using token family
-                    sessionsTerminated = refreshTokenService.revokeSingleSession(refreshToken);
-                }
-            } catch (Exception e) {
-                // Even if token processing fails, clear cookies for security
-                System.err.println("Error during logout: " + e.getMessage());
-                sessionsTerminated = 0;
-            }
-        }
-
-        // Always clear cookies (fast operation)
-        clearAuthCookies(response);
-
-        return String.format("Logged out successfully. %d session(s) terminated.", sessionsTerminated);
-    }
-
-    // OPTIMIZED: Streamlined token generation and cookie setting
-    private AuthResponseDTO createEmployeeSuccessResponse(Employee employee, HttpServletRequest request, HttpServletResponse response) {
-        // Generate token family for this login session
-        String tokenFamily = jwtService.generateTokenFamily();
-        String deviceInfo = extractDeviceInfo(request);
-
-        // PARALLEL: Generate tokens concurrently
-        CompletableFuture<String> accessTokenFuture = CompletableFuture.supplyAsync(() ->
-                jwtService.generateAccessToken(employee.getName())
-        );
-
-        CompletableFuture<RefreshToken> refreshTokenFuture = CompletableFuture.supplyAsync(() ->
-                refreshTokenService.createRefreshToken(employee.getName(), tokenFamily, deviceInfo)
-        );
-
-        // Get results
-        String accessToken = accessTokenFuture.join();
-        RefreshToken refreshToken = refreshTokenFuture.join();
-
-        // Set secure cookies (NO tokens in response body!)
-        setAccessTokenCookie(response, accessToken);
-        setRefreshTokenCookie(response, generateTokenForCookie(refreshToken));
-
-        AuthResponseDTO authResponse = new AuthResponseDTO();
-        authResponse.setMessage("Employee authentication successful");
-        authResponse.setName(employee.getName());
-        authResponse.setDepartment(employee.getDepartment());
-        authResponse.setRole(employee.getRole());
-        authResponse.setUserType("EMPLOYEE");
-        authResponse.setPasswordRequired(false);
-        authResponse.setNewCorpsMember(false);
-        authResponse.setAccessTokenExpirationMs(jwtService.getAccessTokenExpirationMs());
-        authResponse.setRequiresRefresh(false);
-
-        return authResponse;
-    }
-
-    private void setAccessTokenCookie(HttpServletResponse response, String accessToken) {
-        boolean isProduction = !isLocalhost();
-
-        String sameSite = isProduction ? "None" : "Lax";
-        String secure = isProduction ? "; Secure" : "";
-
-        response.addHeader("Set-Cookie", String.format(
-                "%s=%s; Path=%s; HttpOnly; SameSite=%s%s; Max-Age=%d",
-                "accessToken",
-                accessToken,
-                "/",
-                sameSite,
-                secure,
-                (int) (jwtService.getAccessTokenExpirationMs() / 1000)
-        ));
-    }
-
-    private void setRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
-        boolean isProduction = !isLocalhost();
-
-        String sameSite = isProduction ? "None" : "Lax";
-        String secure = isProduction ? "; Secure" : "";
-
-        response.addHeader("Set-Cookie", String.format(
-                "%s=%s; Path=%s; HttpOnly; SameSite=%s%s; Max-Age=%d",
-                "refreshToken",
-                refreshToken,
-                "/api/unified-auth",
-                sameSite,
-                secure,
-                (int) (jwtService.getRefreshTokenExpirationMs() / 1000)
-        ));
-    }
-
-    private boolean isLocalhost() {
-        String env = System.getenv("ENVIRONMENT");
-        return env != null && env.equalsIgnoreCase("development");
-    }
-
-    private void clearAuthCookies(HttpServletResponse response) {
-        // Clear access token cookie
-        Cookie accessCookie = new Cookie("accessToken", "");
-        accessCookie.setHttpOnly(true);
-        accessCookie.setSecure(secureCookies);
-        accessCookie.setPath("/api");
-        accessCookie.setMaxAge(0);
-
-        // Clear refresh token cookie
-        Cookie refreshCookie = new Cookie("refreshToken", "");
-        refreshCookie.setHttpOnly(true);
-        refreshCookie.setSecure(secureCookies);
-        refreshCookie.setPath("/api/unified-auth");
-        refreshCookie.setMaxAge(0);
-
-        response.addCookie(accessCookie);
-        response.addCookie(refreshCookie);
-    }
-
-    private String extractRefreshTokenFromCookie(HttpServletRequest request) {
-        if (request.getCookies() == null) return null;
-
-        for (Cookie cookie : request.getCookies()) {
-            if ("refreshToken".equals(cookie.getName())) {
-                return cookie.getValue();
-            }
-        }
-        return null;
-    }
-
-    private String extractDeviceInfo(HttpServletRequest request) {
-        String userAgent = request.getHeader("User-Agent");
-        String ip = getClientIp(request);
-        return String.format("%s from %s", userAgent != null ? userAgent.substring(0, Math.min(100, userAgent.length())) : "Unknown", ip);
-    }
-
-    private String getClientIp(HttpServletRequest request) {
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-            return xForwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
-    }
-
-    private String generateTokenForCookie(RefreshToken refreshToken) {
-        return jwtService.generateRefreshToken(refreshToken.getEmployeeName(), refreshToken.getTokenFamily());
-    }
-
-    // Keep existing methods unchanged
-    private AuthResponseDTO createPasswordRequiredResponse(Employee employee) {
-        AuthResponseDTO response = new AuthResponseDTO();
-        response.setMessage("Password required for employee authentication");
-        response.setName(employee.getName());
-        response.setDepartment(employee.getDepartment());
-        response.setRole(employee.getRole());
-        response.setUserType("EMPLOYEE");
-        response.setPasswordRequired(true);
-        response.setNewCorpsMember(false);
-        return response;
-    }
-
-    private AuthResponseDTO handleCorpsMember(AuthRequestDTO request) {
-        if (request.getRole() != UserRole.CORPS_MEMBER) {
-            throw new RuntimeException("Access denied. Only employees can have " + request.getRole() + " role.");
-        }
-
-        Optional<CorpsMember> existingCorpsMember = corpsMemberRepository.findByNameAndActive(request.getName(), true);
-
-        if (existingCorpsMember.isPresent()) {
-            CorpsMember corpsMember = existingCorpsMember.get();
-            return createCorpsMemberResponse(corpsMember, false);
-        } else {
-            CorpsMember newCorpsMember = new CorpsMember();
-            newCorpsMember.setName(request.getName());
-            newCorpsMember.setDepartment(request.getDepartment());
-            newCorpsMember.setActive(true);
-            newCorpsMember.setCreatedAt(LocalDate.now());
-
-            CorpsMember savedCorpsMember = corpsMemberRepository.save(newCorpsMember);
-            return createCorpsMemberResponse(savedCorpsMember, true);
-        }
-    }
-
-    private AuthResponseDTO createCorpsMemberResponse(CorpsMember corpsMember, boolean isNew) {
-        AuthResponseDTO response = new AuthResponseDTO();
-        response.setMessage(isNew ? "New corps member registered successfully" : "Corps member authentication successful");
-        response.setName(corpsMember.getName());
-        response.setDepartment(corpsMember.getDepartment());
-        response.setRole(UserRole.CORPS_MEMBER);
-        response.setUserType("CORPS_MEMBER");
-        response.setPasswordRequired(false);
-        response.setNewCorpsMember(isNew);
-        return response;
-    }
+    // ... (the rest continues, same structure, with humanized comments)
 
     public List<EmployeeListResponseDTO> getEmployeeList() {
         List<Employee> employees = employeeRepository.findAll().stream()
@@ -404,60 +347,13 @@ public class UnifiedAuthService {
         }).toList();
     }
 
-    public Employee deactivateEmployeeByName(String employeeName, String adminName, String reason){
-        Employee employee= employeeRepository.findByName(employeeName)
-                .orElseThrow(() -> new RuntimeException("Employee not found"));
-
-        if (employee.getRole()== UserRole.ADMIN){
-            throw new RuntimeException("Cannot deactivate admin users");
-        }
-
-        if (employee.getRole() != UserRole.SUPERVISOR && employee.getRole() != UserRole.HOD) {
-            throw new RuntimeException("Can only deactivate employees with SUPERVISOR or HOD roles");
-        }
-
-        long pendingForms = getPendingFormsCount(employee);
-        if (pendingForms > 0) {
-            throw new RuntimeException(
-                    String.format("Cannot deactivate %s. They have %d pending forms to review. " +
-                                    "Please reassign or complete these reviews first.",
-                            employee.getName(), pendingForms));
-        }
-
-        employee.setActive(false);
-        Employee savedEmployee = employeeRepository.save(employee);
-
-        // Clear cache for this employee
-        quickCache.remove(employee.getName().toLowerCase().trim());
-
-        refreshTokenService.revokeAllTokensForEmployee(employee.getName());
-
-        System.out.println(String.format(
-                "[EMPLOYEE_DEACTIVATION] Employee Name: %s, (Role: %s, Department: %s) deactivated by admin '%s'. Reason: %s. Time: %s",
-                employeeName, employee.getName(), employee.getRole(), employee.getDepartment(),
-                adminName, reason != null ? reason : "Not provided", LocalDate.now()
-        ));
-        return savedEmployee;
-    }
-
-    private long getPendingFormsCount(Employee employee) {
-        switch (employee.getRole()) {
-            case SUPERVISOR:
-                return clearanceRepository.countByStatusAndDepartment(
-                        FormStatus.PENDING_SUPERVISOR, employee.getDepartment());
-            case HOD:
-                return clearanceRepository.countByStatusAndDepartment(
-                        FormStatus.PENDING_HOD, employee.getDepartment());
-            default:
-                return 0;
-        }
-    }
-
+    /**
+     * Add a new employee (Admin only).
+     */
     public Employee addEmployee(String name, String password, String department, UserRole role) {
         if (employeeRepository.existsByName(name)) {
             throw new RuntimeException("Employee with this name already exists");
         }
-
         if (role != UserRole.ADMIN && role != UserRole.SUPERVISOR && role != UserRole.HOD) {
             throw new RuntimeException("Invalid role for employee. Only ADMIN, SUPERVISOR, HOD are allowed.");
         }
@@ -474,16 +370,89 @@ public class UnifiedAuthService {
         return employeeRepository.save(employee);
     }
 
-    public void changeEmployeePassword(String name, String newPassword) {
-        Employee employee = employeeRepository.findByName(name)
+    public Employee editEmployee(UUID employeeId, EditEmployeeDTO dto) {
+        Employee employee = employeeRepository.findById(employeeId)
+                .orElseThrow(()-> new RuntimeException("Employee not found"));
+
+        if (dto.getDepartment() != null && !dto.getDepartment().isBlank()){
+            employee.setDepartment(dto.getDepartment());
+        }
+
+        if(dto.getRole() != null){
+            employee.setRole((dto).getRole());
+        }
+
+        if(dto.getPassword()!= null && !dto.getPassword().isBlank()){
+            employee.setPassword(encoder.encode(dto.getPassword()));
+            employee.setLastPasswordChange(LocalDate.now());
+        }
+
+        return employeeRepository.save(employee);
+    }
+
+//    /**
+//     * Change an employee’s password.
+//     */
+//    public void changeEmployeePassword(String name, String newPassword) {
+//        Employee employee = employeeRepository.findByName(name)
+//                .orElseThrow(() -> new RuntimeException("Employee not found"));
+//
+//        employee.setPassword(encoder.encode(newPassword));
+//        employee.setLastPasswordChange(LocalDate.now());
+//        employeeRepository.save(employee);
+//
+//        quickCache.remove(name.toLowerCase().trim());
+//    }
+
+    public Employee deactivateEmployee(UUID employeeId, String adminName, String reason){
+        Employee employee= employeeRepository.findById(employeeId)
+                .orElseThrow(()-> new RuntimeException("Employee not found"));
+
+        if (employee.getRole()== UserRole.ADMIN){
+            throw new RuntimeException("Cannot deactivate admin user");
+        }
+
+        if(employee.getName().equals(adminName)){
+            throw new RuntimeException("Connot deactivate your own account");
+        }
+
+        employee.setActive(false);
+        Employee saved=employeeRepository.save(employee);
+
+        quickCache.remove(employee.getName().toLowerCase().trim());
+        refreshTokenService.revokeAllTokensForEmployee(employee.getName());
+
+        return saved;
+    }
+
+    /**
+     * Deactivate a supervisor/HOD (cannot deactivate Admin).
+     */
+    public Employee deactivateEmployeeByName(String employeeName, String adminName, String reason) {
+        Employee employee = employeeRepository.findByName(employeeName)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 
-        employee.setPassword(encoder.encode(newPassword));
-        employee.setLastPasswordChange(LocalDate.now());
-        employeeRepository.save(employee);
+        if (employee.getRole() == UserRole.ADMIN) {
+            throw new RuntimeException("Cannot deactivate admin users");
+        }
+        if (employee.getRole() != UserRole.SUPERVISOR && employee.getRole() != UserRole.HOD) {
+            throw new RuntimeException("Can only deactivate employees with SUPERVISOR or HOD roles");
+        }
 
-        // Clear cache when password changes
-        quickCache.remove(name.toLowerCase().trim());
+        long pendingForms = getPendingFormsCount(employee);
+        if (pendingForms > 0) {
+            throw new RuntimeException(
+                    String.format("Cannot deactivate %s. They have %d pending forms to review.",
+                            employee.getName(), pendingForms));
+        }
+
+        employee.setActive(false);
+        Employee saved = employeeRepository.save(employee);
+
+        quickCache.remove(employee.getName().toLowerCase().trim());
+        refreshTokenService.revokeAllTokensForEmployee(employee.getName());
+
+        return saved;
     }
 
     public void deactivateEmployee(String name) {
@@ -492,11 +461,12 @@ public class UnifiedAuthService {
 
         employee.setActive(false);
         employeeRepository.save(employee);
-
-        // Clear cache when employee is deactivated
         quickCache.remove(name.toLowerCase().trim());
     }
 
+    /**
+     * First-time system setup → create initial Admin.
+     */
     public Employee createInitialAdmin() {
         if (employeeRepository.count() > 0) {
             throw new RuntimeException("Employees already exist. Use normal add employee endpoint.");
@@ -514,85 +484,158 @@ public class UnifiedAuthService {
         return employeeRepository.save(admin);
     }
 
-    /**
-     * Get current authenticated user details
-     */
-    public CurrentUserResponseDTO getCurrentUser(HttpServletRequest request, String username) {
-        // Find the user (employee or corps member)
-        Optional<Employee> employeeOpt = employeeRepository.findByNameAndActive(username, true);
+    private long getPendingFormsCount(Employee employee) {
+        return switch (employee.getRole()) {
+            case SUPERVISOR -> clearanceRepository.countByStatusAndDepartment(FormStatus.PENDING_SUPERVISOR, employee.getDepartment());
+            case HOD -> clearanceRepository.countByStatusAndDepartment(FormStatus.PENDING_HOD, employee.getDepartment());
+            default -> 0;
+        };
+    }
 
-        if (employeeOpt.isPresent()) {
-            Employee employee = employeeOpt.get();
+    // ============================================================
+    // COOKIE + TOKEN UTILITIES
+    // ============================================================
 
-            // Extract tokens from cookies
-            String accessToken = extractAccessTokenFromCookie(request);
+    private void setAccessTokenCookie(HttpServletResponse response, String accessToken) {
+        boolean isProduction = !isLocalhost();
+        String sameSite = isProduction ? "None" : "Lax";
+        String secure = isProduction ? "; Secure" : "";
 
-            CurrentUserResponseDTO response = new CurrentUserResponseDTO();
-            response.setId(employee.getId());
-            response.setName(employee.getName());
-            response.setDepartment(employee.getDepartment());
-            response.setRole(employee.getRole());
-            response.setUserType("EMPLOYEE");
-            response.setActive(employee.isActive());
-            response.setCreatedAT(employee.getCreatedAt());
-            response.setLastPasswordChange(employee.getLastPasswordChange());
+        response.addHeader("Set-Cookie", String.format(
+                "accessToken=%s; Path=/; HttpOnly; SameSite=%s%s; Max-Age=%d",
+                accessToken, sameSite, secure, (int) (jwtService.getAccessTokenExpirationMs() / 1000)
+        ));
+    }
 
-            // Check if password is expired
-            boolean passwordExpired = employee.getLastPasswordChange().isBefore(LocalDate.now().minusMonths(3));
-            response.setPasswordExpired(passwordExpired);
+    private void setRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
+        boolean isProduction = !isLocalhost();
+        String sameSite = isProduction ? "None" : "Lax";
+        String secure = isProduction ? "; Secure" : "";
 
-            // Token info
-            if (accessToken != null) {
-                long remainingMinutes = jwtService.getTokenRemainingTimeMinutes(accessToken);
-                response.setAccessTokenRemainingMinutes(remainingMinutes);
-            }
+        response.addHeader("Set-Cookie", String.format(
+                "refreshToken=%s; Path=/api/unified-auth; HttpOnly; SameSite=%s%s; Max-Age=%d",
+                refreshToken, sameSite, secure, (int) (jwtService.getRefreshTokenExpirationMs() / 1000)
+        ));
+    }
 
-            response.setRefreshTokenExpirationMs(jwtService.getRefreshTokenExpirationMs());
+    private boolean isLocalhost() {
+        String env = System.getenv("ENVIRONMENT");
+        return env != null && env.equalsIgnoreCase("development");
+    }
 
-            // Get active session count
-            long sessionCount = refreshTokenService.getActiveSessionCount(employee.getName());
-            response.setActiveSessionCount(sessionCount);
+    private void clearAuthCookies(HttpServletResponse response) {
+        Cookie accessCookie = new Cookie("accessToken", "");
+        accessCookie.setHttpOnly(true);
+        accessCookie.setSecure(secureCookies);
+        accessCookie.setPath("/api");
+        accessCookie.setMaxAge(0);
 
-            response.setAuthenticated(true);
+        Cookie refreshCookie = new Cookie("refreshToken", "");
+        refreshCookie.setHttpOnly(true);
+        refreshCookie.setSecure(secureCookies);
+        refreshCookie.setPath("/api/unified-auth");
+        refreshCookie.setMaxAge(0);
 
-            return response;
+        response.addCookie(accessCookie);
+        response.addCookie(refreshCookie);
+    }
 
-        } else {
-            // Check if it's a corps member
-            Optional<CorpsMember> corpsMemberOpt = corpsMemberRepository.findByNameAndActive(username, true);
-
-            if (corpsMemberOpt.isPresent()) {
-                CorpsMember corpsMember = corpsMemberOpt.get();
-
-                CurrentUserResponseDTO response = new CurrentUserResponseDTO();
-                response.setId(corpsMember.getId());
-                response.setName(corpsMember.getName());
-                response.setDepartment(corpsMember.getDepartment());
-                response.setRole(UserRole.CORPS_MEMBER);
-                response.setUserType("CORPS_MEMBER");
-                response.setActive(corpsMember.isActive());
-                response.setCreatedAT(corpsMember.getCreatedAt());
-                response.setAuthenticated(true);
-
-                // Corps members don't have sessions or password expiration
-                response.setPasswordExpired(false);
-                response.setActiveSessionCount(0);
-
-                return response;
-            }
-        }
-
-        throw new RuntimeException("User not found");
+    private String generateTokenForCookie(RefreshToken refreshToken) {
+        return jwtService.generateRefreshToken(refreshToken.getEmployeeName(), refreshToken.getTokenFamily());
     }
 
     private String extractAccessTokenFromCookie(HttpServletRequest request) {
         if (request.getCookies() == null) return null;
-
         for (Cookie cookie : request.getCookies()) {
             if ("accessToken".equals(cookie.getName())) {
                 return cookie.getValue();
             }
         }
         return null;
+    }
+
+    private String extractRefreshTokenFromCookie(HttpServletRequest request) {
+        if (request.getCookies() == null) return null;
+        for (Cookie cookie : request.getCookies()) {
+            if ("refreshToken".equals(cookie.getName())) {
+                return cookie.getValue();
+            }
+        }
+        return null;
+    }
+
+    private String extractDeviceInfo(HttpServletRequest request) {
+        String userAgent = request.getHeader("User-Agent");
+        String ip = getClientIp(request);
+        return String.format("%s from %s", userAgent != null ? userAgent.substring(0, Math.min(100, userAgent.length())) : "Unknown", ip);
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
+    }
+
+    // ============================================================
+    // RESPONSE HELPERS
+    // ============================================================
+
+    private AuthResponseDTO createEmployeeSuccessResponse(Employee employee,
+                                                          HttpServletRequest request,
+                                                          HttpServletResponse response) {
+        String tokenFamily = jwtService.generateTokenFamily();
+        String deviceInfo = extractDeviceInfo(request);
+
+        CompletableFuture<String> accessTokenFuture =
+                CompletableFuture.supplyAsync(() -> jwtService.generateAccessToken(employee.getName()));
+
+        CompletableFuture<RefreshToken> refreshTokenFuture =
+                CompletableFuture.supplyAsync(() -> refreshTokenService.createRefreshToken(employee.getName(), tokenFamily, deviceInfo));
+
+        String accessToken = accessTokenFuture.join();
+        RefreshToken refreshToken = refreshTokenFuture.join();
+
+        setAccessTokenCookie(response, accessToken);
+        setRefreshTokenCookie(response, generateTokenForCookie(refreshToken));
+
+        AuthResponseDTO authResponse = new AuthResponseDTO();
+        authResponse.setMessage("Employee authentication successful");
+        authResponse.setName(employee.getName());
+        authResponse.setDepartment(employee.getDepartment());
+        authResponse.setRole(employee.getRole());
+        authResponse.setUserType("EMPLOYEE");
+        authResponse.setPasswordRequired(false);
+        authResponse.setNewCorpsMember(false);
+        authResponse.setAccessTokenExpirationMs(jwtService.getAccessTokenExpirationMs());
+        authResponse.setRequiresRefresh(false);
+
+        return authResponse;
+    }
+
+    private AuthResponseDTO createPasswordRequiredResponse(Employee employee) {
+        AuthResponseDTO response = new AuthResponseDTO();
+        response.setMessage("Password required for employee authentication");
+        response.setName(employee.getName());
+        response.setDepartment(employee.getDepartment());
+        response.setRole(employee.getRole());
+        response.setUserType("EMPLOYEE");
+        response.setPasswordRequired(true);
+        response.setNewCorpsMember(false);
+        return response;
+    }
+
+    private AuthResponseDTO createCorpsMemberResponse(CorpsMember corpsMember, boolean isNew) {
+        AuthResponseDTO response = new AuthResponseDTO();
+        response.setMessage(isNew ? "New corps member registered successfully"
+                : "Corps member authentication successful");
+        response.setName(corpsMember.getName());
+        response.setDepartment(corpsMember.getDepartment());
+        response.setRole(UserRole.CORPS_MEMBER);
+        response.setUserType("CORPS_MEMBER");
+        response.setPasswordRequired(false);
+        response.setNewCorpsMember(isNew);
+        return response;
     }
 }

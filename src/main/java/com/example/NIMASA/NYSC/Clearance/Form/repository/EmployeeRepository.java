@@ -6,11 +6,16 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
-public interface EmployeeRepository extends JpaRepository<Employee, Long> {
+public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
+
+
     Optional<Employee> findByNameAndActive(String name, boolean active);
 
     Optional<Employee> findByName (String name);
 
     boolean existsByName(String name);
+
+    Optional<Employee> findById(UUID employeeId);
 }
