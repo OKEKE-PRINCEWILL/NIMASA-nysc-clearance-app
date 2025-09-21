@@ -601,6 +601,7 @@ public class UnifiedAuthService {
         setRefreshTokenCookie(response, generateTokenForCookie(refreshToken));
 
         AuthResponseDTO authResponse = new AuthResponseDTO();
+        authResponse.setId(employee.getId());
         authResponse.setMessage("Employee authentication successful");
         authResponse.setName(employee.getName());
         authResponse.setDepartment(employee.getDepartment());
@@ -617,6 +618,7 @@ public class UnifiedAuthService {
     private AuthResponseDTO createPasswordRequiredResponse(Employee employee) {
         AuthResponseDTO response = new AuthResponseDTO();
         response.setMessage("Password required for employee authentication");
+        response.setId(employee.getId());
         response.setName(employee.getName());
         response.setDepartment(employee.getDepartment());
         response.setRole(employee.getRole());
@@ -630,6 +632,7 @@ public class UnifiedAuthService {
         AuthResponseDTO response = new AuthResponseDTO();
         response.setMessage(isNew ? "New corps member registered successfully"
                 : "Corps member authentication successful");
+        response.setId(corpsMember.getId());
         response.setName(corpsMember.getName());
         response.setDepartment(corpsMember.getDepartment());
         response.setRole(UserRole.CORPS_MEMBER);

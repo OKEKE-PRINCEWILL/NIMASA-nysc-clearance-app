@@ -313,8 +313,8 @@ public class ClearanceFormService {
     private FormTrackingResponseDTO mapToDTO(ClearanceForm form) {
         FormTrackingResponseDTO dto = new FormTrackingResponseDTO();
         dto.setFormId(form.getId());
-        dto.setCorpsId(form.getCorpsMember().getId());
-        dto.setCorpsName(form.getCorpsMember().getName());
+//        dto.setCorpsId(form.getCorpsMember().getId());
+//        dto.setCorpsName(form.getCorpsMember().getName());
 
 
         dto.setCorpsName(form.getCorpsName());

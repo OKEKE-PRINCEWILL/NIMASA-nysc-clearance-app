@@ -87,6 +87,32 @@ public class ClearanceFormController {
         return ResponseEntity.ok(response);
     }
 
+//@PostMapping("/submission")
+//@Operation(summary = "Submit new clearance form (Corps Member)")
+//public ResponseEntity<CorpsMemberFormResponseDTO> createForm(
+//        @Valid @RequestBody CorpsMemberFormRequestDTO requestDTO) {
+//
+//    CorpsMember corps = corpsMemberRepository.findById(requestDTO.getCorpsMemberId())
+//            .orElseThrow(() -> new RuntimeException("Corps member not found"));
+//
+//    ClearanceForm form = new ClearanceForm();
+//    form.setCorpsMember(corps); // 🔑 the relationship
+//    form.setCorpsName(corps.getName());
+//    form.setStateCode(corps.getStateCode());
+//    form.setDepartment(corps.getDepartment());
+//
+//    ClearanceForm savedForm = clearanceFormService.createForm(form);
+//
+//    CorpsMemberFormResponseDTO response = new CorpsMemberFormResponseDTO(
+//            savedForm.getId(),
+//            savedForm.getCorpsName(),
+//            savedForm.getStateCode(),
+//            savedForm.getDepartment()
+//    );
+//
+//    return ResponseEntity.ok(response);
+//}
+
 
     @GetMapping("/{id}")
     @Operation(

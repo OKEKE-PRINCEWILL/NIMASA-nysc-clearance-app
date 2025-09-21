@@ -27,6 +27,9 @@ public class CorpsMember {
     @Column(nullable = false)
     private String department;
 
+//    @Column(nullable = false)
+//    private String stateCode;
+
     @Column(nullable = false)
     private boolean active = true;
 

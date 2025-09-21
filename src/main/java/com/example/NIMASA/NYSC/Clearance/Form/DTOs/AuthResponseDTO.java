@@ -6,11 +6,13 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.sql.Struct;
+import java.util.UUID;
 
 @AllArgsConstructor
 @NoArgsConstructor
 @Data
 public class AuthResponseDTO {
+    private UUID id;
     private String message;
     private String name;
     private String department;
