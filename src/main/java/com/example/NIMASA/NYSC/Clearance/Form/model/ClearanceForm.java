@@ -22,7 +22,9 @@ public class ClearanceForm {
     @Column(updatable = false, nullable = false)
     private UUID id;
 
-
+    @ManyToOne
+    @JoinColumn(name = "corps_id", nullable = false)
+    private CorpsMember corpsMember;
     @NotBlank(message = "Corps Member Name is required")
     @Column(nullable = false)
     private String corpsName;

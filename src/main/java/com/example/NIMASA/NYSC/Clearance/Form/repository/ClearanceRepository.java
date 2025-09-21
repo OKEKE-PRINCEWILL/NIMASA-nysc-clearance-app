@@ -22,6 +22,9 @@ public interface ClearanceRepository extends JpaRepository<ClearanceForm, UUID> 
 
     List<ClearanceForm> findByCorpsName(String corpsName);
 
+    List<ClearanceForm> findByCorpsMember_Id(UUID corpsId);
+
+
     List<ClearanceForm> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 
     long countByStatus(FormStatus status);
