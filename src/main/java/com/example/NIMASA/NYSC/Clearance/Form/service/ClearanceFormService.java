@@ -330,6 +330,15 @@ public class ClearanceFormService {
         dto.setApproved(form.getApproved());
         return dto;
     }
+    // In ClearanceFormService
+    public List<FormTrackingResponseDTO> getFormsForCorps(UUID corpsId) {
+        CorpsMember corps = corpsMemberRepository.findById(corpsId)
+                .orElseThrow(() -> new RuntimeException("Corps member not found"));
+
+        List<ClearanceForm> forms = clearanceRepo.findByCorpsName(corps.getName());
+        return forms.stream().map(this::mapToDTO).toList();
+    }
+
 
     // ============================================================
     // ADMIN APPROVAL & REJECTION

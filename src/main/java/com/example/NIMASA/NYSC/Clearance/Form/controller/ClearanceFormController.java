@@ -1,6 +1,9 @@
 
 package com.example.NIMASA.NYSC.Clearance.Form.controller;
+import com.example.NIMASA.NYSC.Clearance.Form.model.CorpsMember;
 import com.example.NIMASA.NYSC.Clearance.Form.model.Employee;
+import com.example.NIMASA.NYSC.Clearance.Form.repository.ClearanceRepository;
+import com.example.NIMASA.NYSC.Clearance.Form.repository.CorpsMemberRepository;
 import com.example.NIMASA.NYSC.Clearance.Form.securityModel.EmployeePrincipal;
 import com.example.NIMASA.NYSC.Clearance.Form.service.ResponseFilterService;
 import com.example.NIMASA.NYSC.Clearance.Form.service.ClearanceFormService;
@@ -47,6 +50,8 @@ public class ClearanceFormController {
 //    private final ApprovedHodRepo approvedHodRepo;
     private final ResponseFilterService responseFilterService;
     private final SignatureService signatureService;
+    private final CorpsMemberRepository corpsMemberRepository;
+    private final ClearanceRepository clearanceRepo;
 
     //method to parse role parameter with default
     private UserRole parseUserRole(String roleParam) {
@@ -590,6 +595,26 @@ public class ClearanceFormController {
             return ResponseEntity.status(500).build();
         }
     }
+
+    @GetMapping("/forms/track")
+    public ResponseEntity<?> trackUserForms() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        EmployeePrincipal principal = (EmployeePrincipal) auth.getPrincipal();
+
+        String username = principal.getEmployee().getName();
+        String department = principal.getEmployee().getDepartment();
+        UserRole role = principal.getEmployee().getRole();
+
+        List<FormTrackingResponseDTO> forms = clearanceFormService.getFormsForUser(username, department, role);
+        return ResponseEntity.ok(forms);
+    }
+    @GetMapping("/corps/{id}/forms/track")
+    public ResponseEntity<?> trackCorpsForms(@PathVariable UUID id) {
+        List<FormTrackingResponseDTO> forms = clearanceFormService.getFormsForCorps(id);
+        return ResponseEntity.ok(forms);
+    }
+
+
 }
 
 
