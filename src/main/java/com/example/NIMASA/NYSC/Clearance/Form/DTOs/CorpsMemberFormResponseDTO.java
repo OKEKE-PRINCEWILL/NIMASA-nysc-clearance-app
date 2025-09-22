@@ -10,7 +10,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 public class CorpsMemberFormResponseDTO {
-    private UUID id;
+
     private String corpsName;
     private String stateCode;
     private String department;

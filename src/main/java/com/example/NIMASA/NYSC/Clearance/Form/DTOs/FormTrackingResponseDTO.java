@@ -13,7 +13,6 @@ import java.util.UUID;
 @NoArgsConstructor
 public class FormTrackingResponseDTO {
     private UUID formId;
-
     private String corpsName;
     private String stateCode;
     private String department;
