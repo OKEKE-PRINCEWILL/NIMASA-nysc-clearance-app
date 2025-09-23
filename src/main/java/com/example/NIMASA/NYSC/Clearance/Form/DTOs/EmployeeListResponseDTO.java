@@ -14,6 +14,7 @@ import java.util.UUID;
 public class EmployeeListResponseDTO {
     private UUID id;
     private String name;
+    private String username;
     private String department;
     private UserRole userRole;
     private boolean active;

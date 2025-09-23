@@ -329,6 +329,7 @@ public class UnifiedAuthService {
             EmployeeListResponseDTO dto = new EmployeeListResponseDTO();
             dto.setId(employee.getId());
             dto.setName(employee.getName());
+            dto.setUsername(employee.getUsername());
             dto.setDepartment(employee.getDepartment());
             dto.setUserRole(employee.getRole());
             dto.setActive(employee.isActive());
