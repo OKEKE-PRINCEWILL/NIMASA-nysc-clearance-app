@@ -117,7 +117,7 @@ public class UnifiedAuthService {
             // Step 2: query DB for employee
             // NEW employee lookup (by username)
             CompletableFuture<Optional<Employee>> employeeQuery =
-                    CompletableFuture.supplyAsync(() -> employeeRepository.findByUsernameAndActive(request.getName(), true));
+                    CompletableFuture.supplyAsync(() -> employeeRepository.findByUsernameIgnoreCaseAndActive(request.getName(), true));
 
             Optional<Employee> employeeOpt = employeeQuery.join();
 

@@ -22,5 +22,5 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
 
     boolean existsByUsername(String username);
 
-    Optional<Employee> findByUsernameAndActive(@NotBlank(message = "Name is required") String name, boolean b);
+    Optional<Employee> findByUsernameIgnoreCaseAndActive(@NotBlank(message = "Name is required") String name, boolean b);
 }
