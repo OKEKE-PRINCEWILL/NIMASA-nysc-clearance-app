@@ -208,7 +208,14 @@ public class UnifiedAuthController {
 
             return ResponseEntity.ok(Map.of(
                     "message", "Employee added successfully",
-                    "employee", employee
+                    "employee", Map.of(
+                            "id", employee.getId(),
+                            "username", employee.getUsername(),   //  auto-generated username
+                            "name", employee.getName(),           // full name (for display in UI)
+                            "department", employee.getDepartment(),
+                            "role", employee.getRole(),
+                            "active", employee.isActive()
+                    )
             ));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of(
@@ -243,22 +250,6 @@ public class UnifiedAuthController {
         }
     }
 
-//    @PostMapping("/employee/change-password")
-//    @Operation(summary = "Change employee password")
-//    @SecurityRequirement(name = "Bearer Authentication")
-//    public ResponseEntity<?> changeEmployeePassword(@Valid @RequestBody ChangePasswordDTO dto) {
-//        try {
-//            unifiedAuthService.changeEmployeePassword(dto.getUsername(), dto.getNewPassword());
-//            return ResponseEntity.ok(Map.of(
-//                    "message", "Password changed successfully",
-//                    "username", dto.getUsername()
-//            ));
-//        } catch (RuntimeException e) {
-//            return ResponseEntity.badRequest().body(Map.of(
-//                    "error", "Password change failed: " + e.getMessage()
-//            ));
-//        }
-//    }
 
     @PostMapping("/employee/{id}/deactivate")
     @Operation(summary = "Deactivate employee(Admin only)")
@@ -287,42 +278,7 @@ public class UnifiedAuthController {
         }
 
     }
-//    @PostMapping("/employee/{name}/deactivate")
-//    @Operation(summary = "Deactivate employee by name (Admin only)")
-//    @SecurityRequirement(name = "Bearer Authentication")
-//    public ResponseEntity<?> deactivateEmployeeByName(@PathVariable String name,
-//                                                      @Valid @RequestBody DeactivateEmployeeDTO dto) {
-//        try {
-//            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-//            if (authentication == null || !authentication.isAuthenticated()) {
-//                return ResponseEntity.status(401).body("Authentication required");
-//            }
-//
-//            EmployeePrincipal principal = (EmployeePrincipal) authentication.getPrincipal();
-//            if (principal.getEmployee().getRole() != UserRole.ADMIN) {
-//                return ResponseEntity.status(403).body("Access denied. Admin role required.");
-//            }
-//
-//            String adminName = principal.getEmployee().getName();
-//            if (adminName.equals(name)) {
-//                return ResponseEntity.badRequest().body("Cannot deactivate an admin or your own account");
-//            }
-//
-//            Employee deactivated = unifiedAuthService.deactivateEmployeeByName(name, adminName, dto.getReason());
-//
-//            return ResponseEntity.ok(Map.of(
-//                    "message", "Employee deactivated successfully",
-//                    "employeeName", name,
-//                    "employeeRole", deactivated.getRole(),
-//                    "employeeDepartment", deactivated.getDepartment(),
-//                    "deactivatedBy", adminName,
-//                    "reason", dto.getReason(),
-//                    "timestamp", LocalDate.now()
-//            ));
-//        } catch (RuntimeException e) {
-//            return ResponseEntity.badRequest().body("Deactivation failed: " + e.getMessage());
-//        }
-//    }
+
 
     @PostMapping("/bootstrap/initial-admin")
     @Operation(summary = "Create initial admin - only works if no employees exist")

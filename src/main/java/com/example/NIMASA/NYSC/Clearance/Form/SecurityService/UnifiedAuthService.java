@@ -115,8 +115,9 @@ public class UnifiedAuthService {
             }
 
             // Step 2: query DB for employee
+            // NEW employee lookup (by username)
             CompletableFuture<Optional<Employee>> employeeQuery =
-                    CompletableFuture.supplyAsync(() -> employeeRepository.findByNameAndActive(request.getName(), true));
+                    CompletableFuture.supplyAsync(() -> employeeRepository.findByUsernameAndActive(request.getName(), true));
 
             Optional<Employee> employeeOpt = employeeQuery.join();
 
@@ -321,7 +322,7 @@ public class UnifiedAuthService {
 
     public List<EmployeeListResponseDTO> getEmployeeList() {
         List<Employee> employees = employeeRepository.findAll().stream()
-                .filter(emp -> emp.getRole() == UserRole.SUPERVISOR || emp.getRole() == UserRole.HOD)
+                .filter(emp -> emp.getRole() == UserRole.SUPERVISOR || emp.getRole() == UserRole.HOD|| emp.getRole()==UserRole.ADMIN)
                 .toList();
 
         return employees.stream().map(employee -> {
@@ -351,14 +352,20 @@ public class UnifiedAuthService {
      * Add a new employee (Admin only).
      */
     public Employee addEmployee(String name, String password, String department, UserRole role) {
-        if (employeeRepository.existsByName(name)) {
-            throw new RuntimeException("Employee with this name already exists");
-        }
+
         if (role != UserRole.ADMIN && role != UserRole.SUPERVISOR && role != UserRole.HOD) {
             throw new RuntimeException("Invalid role for employee. Only ADMIN, SUPERVISOR, HOD are allowed.");
         }
+        String username= generateUsername(name);
+        String baseUsername= username;
+        int counter=1;
+        while(employeeRepository.existsByUsername(username)){
+            username= baseUsername+counter;
+            counter++;
+        }
 
         Employee employee = new Employee();
+        employee.setUsername(username);
         employee.setName(name);
         employee.setPassword(encoder.encode(password));
         employee.setDepartment(department);
@@ -369,6 +376,14 @@ public class UnifiedAuthService {
 
         return employeeRepository.save(employee);
     }
+    private String generateUsername(String fullName) {
+        String[] parts = fullName.trim().toLowerCase().split(" ");
+        if (parts.length < 2) {
+            throw new RuntimeException("Full name must include first and last name.");
+        }
+        return parts[0] + "." + parts[1]; // firstname.lastname
+    }
+
 
     public Employee editEmployee(UUID employeeId, EditEmployeeDTO dto) {
         Employee employee = employeeRepository.findById(employeeId)
@@ -473,7 +488,8 @@ public class UnifiedAuthService {
         }
 
         Employee admin = new Employee();
-        admin.setName("Initial Admin");
+        admin.setName("Initial Admin");  // full name for UI
+        admin.setUsername("Initial.Admin");      // 👈 set username for login
         admin.setPassword(encoder.encode("admin123"));
         admin.setDepartment("Administration");
         admin.setRole(UserRole.ADMIN);
@@ -602,6 +618,7 @@ public class UnifiedAuthService {
 
         AuthResponseDTO authResponse = new AuthResponseDTO();
         authResponse.setId(employee.getId());
+//        authResponse.setUsername(employee.getUsername());
         authResponse.setMessage("Employee authentication successful");
         authResponse.setName(employee.getName());
         authResponse.setDepartment(employee.getDepartment());

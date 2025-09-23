@@ -11,7 +11,9 @@ import org.hibernate.validator.constraints.Normalized;
 @AllArgsConstructor
 @NoArgsConstructor
 @Data
+
 public class AuthRequestDTO {
+
     @NotBlank(message = "Name is required")
     private String name;
 
