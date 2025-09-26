@@ -15,7 +15,7 @@ public class CorpsMembersListResponseDTO {
     private UUID id;
     private String name;
     private String department;
-    private String cdsDay;
+    //private String cdsDay;
     private boolean active;
     private LocalDate createdAT;
 //    private long formCount;

@@ -28,7 +28,7 @@ public class ClearanceForm {
     private String corpsName;
 
     @NotBlank(message = "State Code is required")
-    @Column(nullable = false)
+    //@Column(nullable = false)
     private String stateCode;
 
     @NotBlank(message = "Department is required")
