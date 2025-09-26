@@ -27,8 +27,8 @@ public class CorpsMember {
     @Column(nullable = false)
     private String department;
 
-    @Column(nullable = false)
-    private String cdsDay;
+
+//    private String cdsDay;
 
     @Column(nullable = false)
     private boolean active = true;

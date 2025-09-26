@@ -9,8 +9,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class CorpsMemberFormRequestDTO {
-    @NotBlank(message = "CDS day is required")
-    private String cdsDay;
+
 
     @NotBlank(message = "Corps Member Name is required")
     private String corpsName;
@@ -20,4 +19,7 @@ public class CorpsMemberFormRequestDTO {
 
     @NotBlank(message = "Department is required")
     private String department;
+
+    @NotBlank(message = "CDS day is required")
+    private String cdsDay;
 }
