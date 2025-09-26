@@ -35,6 +35,10 @@ public class ClearanceForm {
     @Column(nullable = false)
     private String department;
 
+    @NotBlank(message = "CDS day is required")
+    @Column(nullable = false)
+    private String cdsDay;
+
 
     @Column(nullable = true)
     private Integer dayAbsent;

@@ -71,13 +71,16 @@ public class ClearanceFormController {
             summary = "Submit new clearance form (Corps Member)")
     public ResponseEntity<CorpsMemberFormResponseDTO> createForm(@Valid @RequestBody CorpsMemberFormRequestDTO requestDTO) {
         ClearanceForm form = new ClearanceForm();
+
         form.setCorpsName(requestDTO.getCorpsName());
         form.setStateCode(requestDTO.getStateCode());
         form.setDepartment(requestDTO.getDepartment());
+        form.setCdsDay(requestDTO.getCdsDay());
 
         ClearanceForm savedForm = clearanceFormService.createForm(form);
 
         CorpsMemberFormResponseDTO response = new CorpsMemberFormResponseDTO(
+                savedForm.getCdsDay(),
                 savedForm.getCorpsName(),
                 savedForm.getStateCode(),
                 savedForm.getDepartment()

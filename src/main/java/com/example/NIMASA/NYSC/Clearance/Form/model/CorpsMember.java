@@ -28,6 +28,9 @@ public class CorpsMember {
     private String department;
 
     @Column(nullable = false)
+    private String cdsDay;
+
+    @Column(nullable = false)
     private boolean active = true;
 
     @Column(nullable = false)

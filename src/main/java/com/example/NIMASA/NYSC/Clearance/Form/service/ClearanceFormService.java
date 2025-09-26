@@ -180,6 +180,7 @@ public class ClearanceFormService {
 
         PrintableFormResponseDTO dto = new PrintableFormResponseDTO();
         dto.setFormId(form.getId());
+        //dto.setCdsDay(form.getCdsDay());
         dto.setCorpsName(form.getCorpsName());
         dto.setStateCode(form.getStateCode());
         dto.setDepartment(form.getDepartment());
@@ -330,14 +331,7 @@ public class ClearanceFormService {
         dto.setApproved(form.getApproved());
         return dto;
     }
-    // In ClearanceFormService
-//    public List<FormTrackingResponseDTO> getFormsForCorps(UUID corpsId) {
-//        CorpsMember corps = corpsMemberRepository.findById(corpsId)
-//                .orElseThrow(() -> new RuntimeException("Corps member not found"));
-//
-//        List<ClearanceForm> forms = clearanceRepo.findByCorpsName(corps.getName());
-//        return forms.stream().map(this::mapToDTO).toList();
-//    }
+
     public List<FormTrackingResponseDTO> getFormsForCorps(UUID corpsId) {
         CorpsMember corps = corpsMemberRepository.findById(corpsId)
                 .orElseThrow(() -> new RuntimeException("Corps member not found"));

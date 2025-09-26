@@ -9,7 +9,9 @@ import java.util.UUID;
 
 public interface CorpsMemberRepository extends JpaRepository<CorpsMember, UUID> {
 
-    Optional<CorpsMember> findByNameAndActive(String name, boolean active);
+    Optional<CorpsMember> findByNameIgnoreCaseAndActive(String name, boolean active);
+
+    void deleteById(UUID corpsId);
 
     Optional<CorpsMember> findByName(String name);
 
@@ -20,4 +22,8 @@ public interface CorpsMemberRepository extends JpaRepository<CorpsMember, UUID> 
     boolean existsByName(String name);
 
     boolean existsByNameAndActive(String name, boolean active);
+
+    Optional<CorpsMember> findById(UUID corpsId);
+
+    long countById(UUID Id);
 }

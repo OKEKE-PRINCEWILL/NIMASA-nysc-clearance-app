@@ -10,6 +10,7 @@ import com.example.NIMASA.NYSC.Clearance.Form.repository.ClearanceRepository;
 import com.example.NIMASA.NYSC.Clearance.Form.repository.CorpsMemberRepository;
 import com.example.NIMASA.NYSC.Clearance.Form.repository.EmployeeRepository;
 
+import jakarta.persistence.Id;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -173,7 +174,7 @@ public class UnifiedAuthService {
             throw new RuntimeException("Access denied. Only employees can have " + request.getRole() + " role.");
         }
 
-        Optional<CorpsMember> existing = corpsMemberRepository.findByNameAndActive(request.getName(), true);
+        Optional<CorpsMember> existing = corpsMemberRepository.findByNameIgnoreCaseAndActive(request.getName(), true);
 
         if (existing.isPresent()) {
             return createCorpsMemberResponse(existing.get(), false);
@@ -231,7 +232,7 @@ public class UnifiedAuthService {
 
         } else {
             // If not employee, check corps member
-            Optional<CorpsMember> corpsOpt = corpsMemberRepository.findByNameAndActive(username, true);
+            Optional<CorpsMember> corpsOpt = corpsMemberRepository.findByNameIgnoreCaseAndActive(username, true);
 
             if (corpsOpt.isPresent()) {
                 CorpsMember corpsMember = corpsOpt.get();
@@ -320,6 +321,30 @@ public class UnifiedAuthService {
 
     // ... (the rest continues, same structure, with humanized comments)
 
+    public List<CorpsMembersListResponseDTO> getCorpsMemberList() {
+        List<CorpsMember> corpsMembers = corpsMemberRepository.findAll();
+
+        return corpsMembers.stream().map(corps -> {
+            CorpsMembersListResponseDTO dto = new CorpsMembersListResponseDTO();
+            dto.setId(corps.getId());
+            dto.setName(corps.getName());
+            dto.setDepartment(corps.getDepartment());
+            dto.setActive(corps.isActive());
+            dto.setCreatedAT(corps.getCreatedAt());
+            return dto;
+        }).toList();
+    }
+
+    public String deactivateCorpsMember(UUID corpsId) {
+        CorpsMember corpsMember = corpsMemberRepository.findById(corpsId)
+                .orElseThrow(() -> new RuntimeException("Corps member not found"));
+
+        // Only delete corps member (leave their forms intact)
+        corpsMemberRepository.deleteById(corpsId);
+
+        return String.format("Corps member %s has been removed from the system", corpsMember.getName());
+    }
+
     public List<EmployeeListResponseDTO> getEmployeeList() {
         List<Employee> employees = employeeRepository.findAll().stream()
                 .filter(emp -> emp.getRole() == UserRole.SUPERVISOR || emp.getRole() == UserRole.HOD|| emp.getRole()==UserRole.ADMIN)
@@ -348,6 +373,7 @@ public class UnifiedAuthService {
             return dto;
         }).toList();
     }
+
 
     /**
      * Add a new employee (Admin only).

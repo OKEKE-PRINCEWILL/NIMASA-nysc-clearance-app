@@ -16,6 +16,7 @@ public class PrintableFormResponseDTO {
     private String corpsName;
     private String stateCode;
     private String department;
+//    private String cdsDay;
 
     // Supervisor Information
     private Integer daysAbsent;

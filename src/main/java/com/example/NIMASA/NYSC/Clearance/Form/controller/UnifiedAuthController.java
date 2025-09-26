@@ -2,9 +2,14 @@ package com.example.NIMASA.NYSC.Clearance.Form.controller;
 
 import com.example.NIMASA.NYSC.Clearance.Form.DTOs.*;
 import com.example.NIMASA.NYSC.Clearance.Form.Enums.UserRole;
+import com.example.NIMASA.NYSC.Clearance.Form.FormStatus;
 import com.example.NIMASA.NYSC.Clearance.Form.SecurityService.UnifiedAuthService;
 import com.example.NIMASA.NYSC.Clearance.Form.SecurityService.RateLimitService;
+import com.example.NIMASA.NYSC.Clearance.Form.model.ClearanceForm;
+import com.example.NIMASA.NYSC.Clearance.Form.model.CorpsMember;
 import com.example.NIMASA.NYSC.Clearance.Form.model.Employee;
+import com.example.NIMASA.NYSC.Clearance.Form.repository.ClearanceRepository;
+import com.example.NIMASA.NYSC.Clearance.Form.repository.CorpsMemberRepository;
 import com.example.NIMASA.NYSC.Clearance.Form.repository.EmployeeRepository;
 import com.example.NIMASA.NYSC.Clearance.Form.securityModel.EmployeePrincipal;
 
@@ -55,6 +60,8 @@ public class UnifiedAuthController {
     private final UnifiedAuthService unifiedAuthService;
     private final RateLimitService rateLimitService;
     private final EmployeeRepository employeeRepository;
+    private final CorpsMemberRepository corpsMemberRepository;
+    private final ClearanceRepository clearanceRepository;
 
     // ============================================================
     // AUTHENTICATION ENDPOINTS
@@ -316,8 +323,12 @@ public class UnifiedAuthController {
             }
 
             List<Employee> allEmployees = employeeRepository.findAll();
-
+            List<CorpsMember> allCorpsMembers = corpsMemberRepository.findAll();
+            List<ClearanceForm> allForms = clearanceRepository.findAll();
             Map<String, Object> stats = new HashMap<>();
+
+
+            stats.put("totalCorpsMembers", allCorpsMembers.size());
             stats.put("totalEmployees", allEmployees.size());
             stats.put("activeEmployees", allEmployees.stream().filter(Employee::isActive).count());
             stats.put("inactiveEmployees", allEmployees.stream().filter(emp -> !emp.isActive()).count());
@@ -328,7 +339,21 @@ public class UnifiedAuthController {
                     .filter(emp -> emp.getLastPasswordChange().isBefore(LocalDate.now().minusMonths(3)))
                     .count());
 
+
+            stats.put("totalForms", allForms.size());
+            stats.put("pendingForms", allForms.stream()
+                    .filter(form ->
+                                form.getStatus() == FormStatus.PENDING_SUPERVISOR
+                            || form.getStatus() == FormStatus.PENDING_HOD
+                            || form.getStatus() == FormStatus.PENDING_ADMIN)
+                    .count());
+            stats.put("approvedForms", allForms.stream()
+                    .filter(form -> form.getStatus() == FormStatus.APPROVED)
+                    .count());
+
             return ResponseEntity.ok(stats);
+
+
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of(
                     "error", "Failed to retrieve stats: " + e.getMessage()
@@ -368,4 +393,48 @@ public class UnifiedAuthController {
         }
         return request.getRemoteAddr();
     }
+
+    // ===================================================
+    // CORPS MEMBERS ENDPOINTS
+    // ===================================================
+    @GetMapping("/admin/corps-members/list")
+    @Operation(summary = "Get list of all corps members (Admin only)")
+    @SecurityRequirement(name = "Bearer Authentication")
+    public ResponseEntity<?> getCorpsMemberList() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(401).body("Authentication required");
+        }
+
+        EmployeePrincipal principal = (EmployeePrincipal) authentication.getPrincipal();
+        if (principal.getEmployee().getRole() != UserRole.ADMIN) {
+            return ResponseEntity.status(403).body("Access denied. Only Admin can access");
+        }
+
+        List<CorpsMembersListResponseDTO> list = unifiedAuthService.getCorpsMemberList();
+        return ResponseEntity.ok(Map.of(
+                "corpsMembers", list,
+                "totalCount", list.size()
+        ));
+    }
+
+    @DeleteMapping("/admin/corps-members/{id}/deactivate")
+    @Operation(summary = "Deactivate (delete) corps member (Admin only)")
+    @SecurityRequirement(name = "Bearer Authentication")
+    public ResponseEntity<?> deactivateCorpsMember(@PathVariable UUID id) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(401).body("Authentication required");
+        }
+
+        EmployeePrincipal principal = (EmployeePrincipal) authentication.getPrincipal();
+        if (principal.getEmployee().getRole() != UserRole.ADMIN) {
+            return ResponseEntity.status(403).body("Access denied. Only Admin can access");
+        }
+
+        String message = unifiedAuthService.deactivateCorpsMember(id);
+        return ResponseEntity.ok(Map.of("message", message));
+    }
+
 }
+
