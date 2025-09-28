@@ -16,7 +16,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
 
     Optional<Employee> findByName (String name);
 
-    //boolean existsByName(String name);
+    void deleteById (UUID employeeId);
 
     Optional<Employee> findById(UUID employeeId);
 

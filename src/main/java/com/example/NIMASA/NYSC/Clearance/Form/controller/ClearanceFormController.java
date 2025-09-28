@@ -80,10 +80,11 @@ public class ClearanceFormController {
         ClearanceForm savedForm = clearanceFormService.createForm(form);
 
         CorpsMemberFormResponseDTO response = new CorpsMemberFormResponseDTO(
-                savedForm.getCdsDay(),
+
                 savedForm.getCorpsName(),
                 savedForm.getStateCode(),
-                savedForm.getDepartment()
+                savedForm.getDepartment(),
+                savedForm.getCdsDay()
         );
 
         return ResponseEntity.ok(response);

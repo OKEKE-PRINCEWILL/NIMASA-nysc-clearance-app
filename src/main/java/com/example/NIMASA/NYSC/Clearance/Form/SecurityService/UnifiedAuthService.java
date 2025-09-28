@@ -10,13 +10,11 @@ import com.example.NIMASA.NYSC.Clearance.Form.repository.ClearanceRepository;
 import com.example.NIMASA.NYSC.Clearance.Form.repository.CorpsMemberRepository;
 import com.example.NIMASA.NYSC.Clearance.Form.repository.EmployeeRepository;
 
-import jakarta.persistence.Id;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import lombok.RequiredArgsConstructor;
-import org.apache.catalina.User;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -432,80 +430,28 @@ public class UnifiedAuthService {
         return employeeRepository.save(employee);
     }
 
-//    /**
-//     * Change an employee’s password.
-//     */
-//    public void changeEmployeePassword(String name, String newPassword) {
-//        Employee employee = employeeRepository.findByName(name)
-//                .orElseThrow(() -> new RuntimeException("Employee not found"));
-//
-//        employee.setPassword(encoder.encode(newPassword));
-//        employee.setLastPasswordChange(LocalDate.now());
-//        employeeRepository.save(employee);
-//
-//        quickCache.remove(name.toLowerCase().trim());
-//    }
 
-    public Employee deactivateEmployee(UUID employeeId, String adminName, String reason){
+    public String deactivateEmployee(UUID employeeId, String adminName, String reason){
         Employee employee= employeeRepository.findById(employeeId)
                 .orElseThrow(()-> new RuntimeException("Employee not found"));
 
-        if (employee.getRole()== UserRole.ADMIN){
-            throw new RuntimeException("Cannot deactivate admin user");
-        }
+//        if (employee.getRole()== UserRole.ADMIN){
+//            throw new RuntimeException("Cannot deactivate admin user");
+//        }
 
         if(employee.getName().equals(adminName)){
-            throw new RuntimeException("Connot deactivate your own account");
+            throw new RuntimeException("Cannot deactivate your own account");
         }
 
-        employee.setActive(false);
-        Employee saved=employeeRepository.save(employee);
+
+
+        employeeRepository.deleteById(employeeId);
 
         quickCache.remove(employee.getName().toLowerCase().trim());
         refreshTokenService.revokeAllTokensForEmployee(employee.getName());
 
-        return saved;
+        return String.format("Employee member %s has been removed from the system", employee.getName());
     }
-
-    /**
-     * Deactivate a supervisor/HOD (cannot deactivate Admin).
-     */
-    public Employee deactivateEmployeeByName(String employeeName, String adminName, String reason) {
-        Employee employee = employeeRepository.findByName(employeeName)
-                .orElseThrow(() -> new RuntimeException("Employee not found"));
-
-        if (employee.getRole() == UserRole.ADMIN) {
-            throw new RuntimeException("Cannot deactivate admin users");
-        }
-        if (employee.getRole() != UserRole.SUPERVISOR && employee.getRole() != UserRole.HOD) {
-            throw new RuntimeException("Can only deactivate employees with SUPERVISOR or HOD roles");
-        }
-
-        long pendingForms = getPendingFormsCount(employee);
-        if (pendingForms > 0) {
-            throw new RuntimeException(
-                    String.format("Cannot deactivate %s. They have %d pending forms to review.",
-                            employee.getName(), pendingForms));
-        }
-
-        employee.setActive(false);
-        Employee saved = employeeRepository.save(employee);
-
-        quickCache.remove(employee.getName().toLowerCase().trim());
-        refreshTokenService.revokeAllTokensForEmployee(employee.getName());
-
-        return saved;
-    }
-
-    public void deactivateEmployee(String name) {
-        Employee employee = employeeRepository.findByName(name)
-                .orElseThrow(() -> new RuntimeException("Employee not found"));
-
-        employee.setActive(false);
-        employeeRepository.save(employee);
-        quickCache.remove(name.toLowerCase().trim());
-    }
-
     /**
      * First-time system setup → create initial Admin.
      */
@@ -526,6 +472,7 @@ public class UnifiedAuthService {
 
         return employeeRepository.save(admin);
     }
+
 
     private long getPendingFormsCount(Employee employee) {
         return switch (employee.getRole()) {

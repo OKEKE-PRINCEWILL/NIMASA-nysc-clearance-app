@@ -273,7 +273,7 @@ public class UnifiedAuthController {
             if (principal.getEmployee().getRole() != UserRole.ADMIN) {
                 return ResponseEntity.status(403).body("Access denied. Admin role required.");
             }
-            Employee deactivated = unifiedAuthService.deactivateEmployee(id,principal.getEmployee().getName(),dto.getReason());
+            String deactivated = unifiedAuthService.deactivateEmployee(id,principal.getEmployee().getName(),dto.getReason());
 
             Map<String, Object> response = new HashMap<>();
             response.put("message", "Employee deactivated successfully");
@@ -349,6 +349,9 @@ public class UnifiedAuthController {
                     .count());
             stats.put("approvedForms", allForms.stream()
                     .filter(form -> form.getStatus() == FormStatus.APPROVED)
+                    .count());
+            stats.put("rejectedForms", allForms.stream()
+                    .filter(form -> form.getStatus() == FormStatus.REJECTED)
                     .count());
 
             return ResponseEntity.ok(stats);

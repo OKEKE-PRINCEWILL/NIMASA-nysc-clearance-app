@@ -180,7 +180,7 @@ public class ClearanceFormService {
 
         PrintableFormResponseDTO dto = new PrintableFormResponseDTO();
         dto.setFormId(form.getId());
-        //dto.setCdsDay(form.getCdsDay());
+        dto.setCdsDay(form.getCdsDay());
         dto.setCorpsName(form.getCorpsName());
         dto.setStateCode(form.getStateCode());
         dto.setDepartment(form.getDepartment());

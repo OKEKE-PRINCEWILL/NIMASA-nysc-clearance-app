@@ -10,8 +10,9 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 public class CorpsMemberFormResponseDTO {
-    private String cdsDay;
+
     private String corpsName;
     private String stateCode;
     private String department;
+    private String cdsDay;
 }
