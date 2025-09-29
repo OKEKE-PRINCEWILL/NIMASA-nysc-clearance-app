@@ -292,6 +292,7 @@ public class UnifiedAuthService {
         if (refreshToken == null) throw new RuntimeException("Refresh token not found");
 
         Optional<String> employeeNameOpt = refreshTokenService.validateRefreshToken(refreshToken);
+
         if (employeeNameOpt.isEmpty()) throw new RuntimeException("Invalid refresh token");
 
         String employeeName = employeeNameOpt.get();
@@ -503,7 +504,7 @@ public class UnifiedAuthService {
         String secure = isProduction ? "; Secure" : "";
 
         response.addHeader("Set-Cookie", String.format(
-                "refreshToken=%s; Path=/api/unified-auth; HttpOnly; SameSite=%s%s; Max-Age=%d",
+                "refreshToken=%s; Path=/; HttpOnly; SameSite=%s%s; Max-Age=%d",
                 refreshToken, sameSite, secure, (int) (jwtService.getRefreshTokenExpirationMs() / 1000)
         ));
     }

@@ -50,20 +50,23 @@ public class RefreshTokenService {
         try {
             // First, validate JWT structure (fast)
             if (!jwtService.validateRefreshTokenStructure(rawToken)) {
+                //System.out.println("i ran a validation check");
                 return Optional.empty();
             }
 
             // Extract username from JWT (fast)
             String username = jwtService.extractUsername(rawToken);
             String tokenFamily = jwtService.extractTokenFamily(rawToken);
-
+            System.out.println(username + tokenFamily + "printed family");
             // Only query database for tokens matching this user and family (much smaller dataset)
             List<RefreshToken> candidateTokens = refreshTokenRepository
                     .findByEmployeeNameAndTokenFamilyAndRevokedFalse(username, tokenFamily);
-
+            System.out.println(candidateTokens + "Candidate token");
             // Check only relevant tokens with BCrypt (minimal BCrypt operations)
             for (RefreshToken token : candidateTokens) {
+                System.out.println(token + "Tokens");
                 if (!token.isExpired() && passwordEncoder.matches(rawToken, token.getToken())) {
+                    System.out.println("im working");
                     return Optional.of(token.getEmployeeName());
                 }
             }
