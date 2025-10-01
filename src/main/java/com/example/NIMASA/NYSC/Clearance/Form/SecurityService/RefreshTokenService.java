@@ -1,4 +1,213 @@
-
+//
+//package com.example.NIMASA.NYSC.Clearance.Form.SecurityService;
+//
+//import com.example.NIMASA.NYSC.Clearance.Form.model.RefreshToken;
+//import com.example.NIMASA.NYSC.Clearance.Form.repository.RefreshTokenRepository;
+//import lombok.RequiredArgsConstructor;
+//import org.springframework.scheduling.annotation.Scheduled;
+//import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+//import org.springframework.stereotype.Service;
+//import org.springframework.transaction.annotation.Transactional;
+//
+//import java.time.LocalDateTime;
+//import java.util.List;
+//import java.util.Optional;
+//
+//@Service
+//@RequiredArgsConstructor
+//public class RefreshTokenService {
+//
+//    private final RefreshTokenRepository refreshTokenRepository;
+//    private final BCryptPasswordEncoder passwordEncoder;
+//    private final JwtService jwtService;
+//
+//    /**
+//     * Create a new refresh token for a user
+//     */
+//    @Transactional
+//    public String createRefreshToken(String employeeName, String tokenFamily, String deviceInfo) {
+//        // Generate Jwt
+//        String jwtToken = jwtService.generateRefreshToken(employeeName, tokenFamily);
+//
+//        // Hash the token before storing (security best practice)
+//        String hashedToken = passwordEncoder.encode(jwtToken);
+//
+//        RefreshToken refreshToken = new RefreshToken();
+//        refreshToken.setToken(hashedToken);
+//        refreshToken.setEmployeeName(employeeName);
+//        refreshToken.setTokenFamily(tokenFamily);
+//        refreshToken.setDeviceInfo(deviceInfo);
+//        refreshToken.setExpirationDate(LocalDateTime.now().plusSeconds(jwtService.getRefreshTokenExpirationMs() / 1000));
+//        refreshToken.setCreatedAt(LocalDateTime.now());
+//
+//        refreshTokenRepository.save(refreshToken);
+//
+//        return jwtToken;
+//    }
+//
+//    /**
+//     * OPTIMIZED: Fast token validation using JWT structure first
+//     */
+//    public Optional<String> validateRefreshToken(String rawToken) {
+//        try {
+//            // First, validate JWT structure (fast)
+//            if (!jwtService.validateRefreshTokenStructure(rawToken)) {
+//                //System.out.println("i ran a validation check");
+//                return Optional.empty();
+//            }
+//
+//            // Extract username from JWT (fast)
+//            String username = jwtService.extractUsername(rawToken);
+//            String tokenFamily = jwtService.extractTokenFamily(rawToken);
+//            System.out.println(username + tokenFamily + "printed family");
+//            // Only query database for tokens matching this user and family (much smaller dataset)
+//            List<RefreshToken> candidateTokens = refreshTokenRepository
+//                    .findByEmployeeNameAndTokenFamilyAndRevokedFalse(username, tokenFamily);
+//            System.out.println(candidateTokens + "Candidate token");
+//            // Check only relevant tokens with BCrypt (minimal BCrypt operations)
+//            for (RefreshToken token : candidateTokens) {
+//                System.out.println(token + "Tokens");
+//                System.out.println(token.isExpired());
+//                System.out.println(rawToken);
+//                System.out.println(token.getRawToken());
+//                System.out.println(passwordEncoder.matches(rawToken,token.getToken()));
+//                if (token.isExpired() && passwordEncoder.matches(rawToken, token.getToken())) {
+//                    System.out.println("im working");
+//                    return Optional.of(token.getEmployeeName());
+//                }
+//            }
+//        } catch (Exception e) {
+//            // Invalid JWT structure or other error
+//            return Optional.empty();
+//        }
+//
+//        return Optional.empty();
+//    }
+//
+//    /**
+//     * OPTIMIZED: Fast token lookup for logout
+//     */
+//    private Optional<RefreshToken> findTokenByRawValueOptimized(String rawToken) {
+//        try {
+//            // Extract info from JWT first (fast)
+//            String username = jwtService.extractUsername(rawToken);
+//            String tokenFamily = jwtService.extractTokenFamily(rawToken);
+//
+//            // Query only relevant tokens
+//            List<RefreshToken> candidateTokens = refreshTokenRepository
+//                    .findByEmployeeNameAndTokenFamilyAndRevokedFalse(username, tokenFamily);
+//
+//            // Check only a few tokens instead of all tokens
+//            for (RefreshToken token : candidateTokens) {
+//                if (passwordEncoder.matches(rawToken, token.getToken())) {
+//                    return Optional.of(token);
+//                }
+//            }
+//        } catch (Exception e) {
+//            // Invalid JWT structure
+//            return Optional.empty();
+//        }
+//
+//        return Optional.empty();
+//    }
+//
+//    /**
+//     * OPTIMIZED: Rotate refresh token with fast lookup
+//     */
+//    @Transactional
+//    public String rotateRefreshToken(String oldRawToken, String deviceInfo) {
+//        // Find and validate the old token (now optimized)
+//        Optional<RefreshToken> oldTokenOpt = findTokenByRawValueOptimized(oldRawToken);
+//
+//        if (oldTokenOpt.isEmpty() || oldTokenOpt.get().isRevoked() || oldTokenOpt.get().isExpired()) {
+//            // If token is invalid, revoke entire family (security measure)
+//            if (oldTokenOpt.isPresent()) {
+//                revokeTokenFamily(oldTokenOpt.get().getTokenFamily());
+//            }
+//            throw new RuntimeException("Invalid refresh token");
+//        }
+//
+//        RefreshToken oldToken = oldTokenOpt.get();
+//
+//        // Revoke the old token
+//        oldToken.setRevoked(true);
+//        refreshTokenRepository.save(oldToken);
+//
+//        // Create new token with same family
+//        return createRefreshToken(oldToken.getEmployeeName(), oldToken.getTokenFamily(), deviceInfo);
+//    }
+//
+//    /**
+//     * OPTIMIZED: Fast logout for single session
+//     */
+//    @Transactional
+//    public int revokeSingleSession(String refreshToken) {
+//        try {
+//            // Extract token family from JWT (fast)
+//            String tokenFamily = jwtService.extractTokenFamily(refreshToken);
+//
+//            // Revoke just this token family (much faster than checking all tokens)
+//            int revokedCount = refreshTokenRepository.revokeTokenFamily(tokenFamily);
+//            return revokedCount > 0 ? 1 : 0;
+//
+//        } catch (Exception e) {
+//            // If JWT parsing fails, fall back to slow method (rare case)
+//            return revokeSingleSessionFallback(refreshToken);
+//        }
+//    }
+//
+//    /**
+//     * Fallback method for single session logout (rare case)
+//     */
+//    @Transactional
+//    private int revokeSingleSessionFallback(String refreshToken) {
+//        Optional<RefreshToken> tokenOpt = findTokenByRawValueOptimized(refreshToken);
+//        if (tokenOpt.isPresent()) {
+//            refreshTokenRepository.revokeTokenFamily(tokenOpt.get().getTokenFamily());
+//            return 1;
+//        }
+//        return 0;
+//    }
+//
+//    /**
+//     * Revoke all tokens for a user (logout all devices) - already optimized
+//     */
+//    @Transactional
+//    public int revokeAllTokensForEmployee(String employeeName) {
+//        List<RefreshToken> activeTokens = refreshTokenRepository.findByEmployeeNameAndRevokedFalse(employeeName);
+//        refreshTokenRepository.revokeAllTokensForEmployee(employeeName);
+//        return activeTokens.size();
+//    }
+//
+//    /**
+//     * Revoke a specific token family (when compromise detected) - already optimized
+//     */
+//    @Transactional
+//    public void revokeTokenFamily(String tokenFamily) {
+//        refreshTokenRepository.revokeTokenFamily(tokenFamily);
+//    }
+//
+//    /**
+//     * Get active session count for a user - already optimized
+//     */
+//    public long getActiveSessionCount(String employeeName) {
+//        return refreshTokenRepository.countActiveSessionsForEmployee(employeeName, LocalDateTime.now());
+//    }
+//
+//    /**
+//     * Clean up expired tokens - runs every hour - already optimized
+//     */
+//    @Scheduled(fixedRate = 3600000) // 1 hour
+//    @Transactional
+//    public void cleanupExpiredTokens() {
+//        try {
+//            refreshTokenRepository.deleteExpiredAndRevokedTokens(LocalDateTime.now());
+//            System.out.println("Cleaned up expired refresh tokens at: " + LocalDateTime.now());
+//        } catch (Exception e) {
+//            System.err.println("Failed to clean up expired tokens: " + e.getMessage());
+//        }
+//    }
+//}
 package com.example.NIMASA.NYSC.Clearance.Form.SecurityService;
 
 import com.example.NIMASA.NYSC.Clearance.Form.model.RefreshToken;
@@ -9,7 +218,10 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,56 +234,74 @@ public class RefreshTokenService {
     private final JwtService jwtService;
 
     /**
-     * Create a new refresh token for a user
+     * Hash string with SHA-256 to reduce size before BCrypt
+     * This fixes the "password cannot be more than 72 bytes" error
      */
     @Transactional
-    public RefreshToken createRefreshToken(String employeeName, String tokenFamily, String deviceInfo) {
-        // Generate secure random token
-        String rawToken = jwtService.generateSecureRandomToken();
-
-        // Hash the token before storing (security best practice)
-        String hashedToken = passwordEncoder.encode(rawToken);
+    public String createRefreshToken(String username, String tokenFamily, String deviceInfo) {
+        String jwtToken = jwtService.generateRefreshToken(username, tokenFamily);
+        String hashedToken = hashWithSHA256(jwtToken);
 
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setToken(hashedToken);
-        refreshToken.setEmployeeName(employeeName);
+        refreshToken.setEmployeeName(username);  // This column stores username now
         refreshToken.setTokenFamily(tokenFamily);
         refreshToken.setDeviceInfo(deviceInfo);
         refreshToken.setExpirationDate(LocalDateTime.now().plusSeconds(jwtService.getRefreshTokenExpirationMs() / 1000));
         refreshToken.setCreatedAt(LocalDateTime.now());
 
-        return refreshTokenRepository.save(refreshToken);
+        refreshTokenRepository.save(refreshToken);
+
+        return jwtToken;
     }
 
     /**
-     * OPTIMIZED: Fast token validation using JWT structure first
+     * Hash with SHA-256 only
+     */
+    private String hashWithSHA256(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString(hash);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to hash token", e);
+        }
+    }
+
+    /**
+     * OPTIMIZED: Fast token validation - NO BCRYPT
      */
     public Optional<String> validateRefreshToken(String rawToken) {
         try {
-            // First, validate JWT structure (fast)
             if (!jwtService.validateRefreshTokenStructure(rawToken)) {
-                //System.out.println("i ran a validation check");
+                System.out.println("JWT structure validation failed");
                 return Optional.empty();
             }
 
-            // Extract username from JWT (fast)
             String username = jwtService.extractUsername(rawToken);
             String tokenFamily = jwtService.extractTokenFamily(rawToken);
-            System.out.println(username + tokenFamily + "printed family");
-            // Only query database for tokens matching this user and family (much smaller dataset)
+
+            System.out.println(" Validating token for username: " + username + ", family: " + tokenFamily);
+
             List<RefreshToken> candidateTokens = refreshTokenRepository
                     .findByEmployeeNameAndTokenFamilyAndRevokedFalse(username, tokenFamily);
-            System.out.println(candidateTokens + "Candidate token");
-            // Check only relevant tokens with BCrypt (minimal BCrypt operations)
+
+            System.out.println( candidateTokens.size() + " candidate tokens");
+
+            String sha256Hash = hashWithSHA256(rawToken);
+
             for (RefreshToken token : candidateTokens) {
-                System.out.println(token + "Tokens");
-                if (!token.isExpired() && passwordEncoder.matches(rawToken, token.getToken())) {
-                    System.out.println("im working");
+                System.out.println(" Checking token - Expired: " + token.isExpired() + ", Match: " + sha256Hash.equals(token.getToken()));
+                if (!token.isExpired() && sha256Hash.equals(token.getToken())) {
+                    System.out.println(" Token validated successfully!");
                     return Optional.of(token.getEmployeeName());
                 }
             }
+
+            System.out.println("No matching token found");
         } catch (Exception e) {
-            // Invalid JWT structure or other error
+            System.out.println(" Validation error: " + e.getMessage());
+            e.printStackTrace();
             return Optional.empty();
         }
 
@@ -79,26 +309,26 @@ public class RefreshTokenService {
     }
 
     /**
-     * OPTIMIZED: Fast token lookup for logout
+     * OPTIMIZED: Fast token lookup - NO BCRYPT
      */
     private Optional<RefreshToken> findTokenByRawValueOptimized(String rawToken) {
         try {
-            // Extract info from JWT first (fast)
             String username = jwtService.extractUsername(rawToken);
             String tokenFamily = jwtService.extractTokenFamily(rawToken);
 
-            // Query only relevant tokens
             List<RefreshToken> candidateTokens = refreshTokenRepository
                     .findByEmployeeNameAndTokenFamilyAndRevokedFalse(username, tokenFamily);
 
-            // Check only a few tokens instead of all tokens
+            // Hash with SHA-256
+            String sha256Hash = hashWithSHA256(rawToken);
+
+            // Direct comparison (no BCrypt)
             for (RefreshToken token : candidateTokens) {
-                if (passwordEncoder.matches(rawToken, token.getToken())) {
+                if (sha256Hash.equals(token.getToken())) {
                     return Optional.of(token);
                 }
             }
         } catch (Exception e) {
-            // Invalid JWT structure
             return Optional.empty();
         }
 
@@ -109,7 +339,7 @@ public class RefreshTokenService {
      * OPTIMIZED: Rotate refresh token with fast lookup
      */
     @Transactional
-    public RefreshToken rotateRefreshToken(String oldRawToken, String deviceInfo) {
+    public String rotateRefreshToken(String oldRawToken, String deviceInfo) {
         // Find and validate the old token (now optimized)
         Optional<RefreshToken> oldTokenOpt = findTokenByRawValueOptimized(oldRawToken);
 
@@ -127,7 +357,7 @@ public class RefreshTokenService {
         oldToken.setRevoked(true);
         refreshTokenRepository.save(oldToken);
 
-        // Create new token with same family
+        // Create new token with same family - returns JWT string
         return createRefreshToken(oldToken.getEmployeeName(), oldToken.getTokenFamily(), deviceInfo);
     }
 

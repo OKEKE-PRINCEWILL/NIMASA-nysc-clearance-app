@@ -92,12 +92,12 @@ public class JwtService {
     /**
      * Generate secure random refresh token for database storage
      */
-    public String generateSecureRandomToken() {
-        SecureRandom secureRandom = new SecureRandom();
-        byte[] randomBytes = new byte[32]; // 256 bits
-        secureRandom.nextBytes(randomBytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
-    }
+//    public String generateSecureRandomToken() {
+//        SecureRandom secureRandom = new SecureRandom();
+//        byte[] randomBytes = new byte[32]; // 256 bits
+//        secureRandom.nextBytes(randomBytes);
+//        return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
+//    }
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);

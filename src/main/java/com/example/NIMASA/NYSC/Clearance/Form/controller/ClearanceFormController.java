@@ -119,8 +119,9 @@ public class ClearanceFormController {
 
         return ResponseEntity.ok(filteredForms);
     }
-
-    // Role based status filtering
+//  =============================================================================
+//  Role based status filtering
+//  ==============================================================================
     @GetMapping("/status/{status}")
     @Operation(
             summary = "Get clearance forms by status")
@@ -134,10 +135,12 @@ public class ClearanceFormController {
 
         return ResponseEntity.ok(filteredForms);
     }
-
+//  ==============================================================
+//  Enpoint for supervisor to review forms
+//  ==============================================================
     @PostMapping(
-            value = "/{id}/supervisor-review",                  // your URL stays the same
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE      // 🟢 add this to explicitly tell Spring this endpoint accepts multipart
+            value = "/{id}/supervisor-review",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
     @Operation(
             summary = "Submit supervisor review id is for the forms",
@@ -170,7 +173,9 @@ public class ClearanceFormController {
 
         }
     }
-
+//  ==============================================================
+//  Enpoint for supervisor to review forms
+//  ==============================================================
     @PostMapping("/{id}/hod-review")
     @Operation(
             summary = "Submit HOD review id is for the forms",
@@ -198,7 +203,9 @@ public class ClearanceFormController {
         }
     }
 
-
+//  ==============================================================
+//  Endpoint for retrieving pending forms for employees
+//  ==============================================================
     @GetMapping("/pending")
     @Operation(
             summary = "Get pending forms for logged-in user",

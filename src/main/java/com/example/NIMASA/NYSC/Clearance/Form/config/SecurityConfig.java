@@ -33,16 +33,16 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // CORS Configuration
+                // cors coonfiguration
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
 
-                // CSRF - disabled for API (using JWT tokens)
+
                 .csrf(customizer -> customizer.disable())
 
-                // Security Headers
+                // Security headers
                 .headers(headers -> headers
                         .frameOptions(frame -> frame.deny()) // Prevent clickjacking
-                        .contentTypeOptions(withDefaults())  // X-Content-Type-Options: nosniff
+                        .contentTypeOptions(withDefaults())
                         .referrerPolicy(ref -> ref
                                 .policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)
                         )
@@ -82,34 +82,34 @@ public class SecurityConfig {
                         // Protected employee management endpoints (require authentication)
                         .requestMatchers("/api/unified-auth/employee/**").authenticated()
                         .requestMatchers("/api/unified-auth/session/**").authenticated()
-                        .requestMatchers("/api/unified-auth/logout").permitAll() // Allow logout without auth (clear cookies)
+                        .requestMatchers("/api/unified-auth/logout").permitAll()
                         .requestMatchers("/api/unified-auth/me").authenticated()
                         // Protected admin-only endpoints
                         .requestMatchers(HttpMethod.POST, "/api/clearance-forms/*/approve").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/clearance-forms/*/reject").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/clearance-forms/**").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/api/clearance-forms/pending").permitAll() // Allow all to see pending (filtering in service)
+                        .requestMatchers(HttpMethod.GET, "/api/clearance-forms/pending").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/clearance-forms/pending/count").permitAll()
 
-                        // Documentation endpoints
+
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**").permitAll()
 
                         // CORS preflight requests
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // Default: permit all (your current setup, can be changed to authenticated)
+
                         .anyRequest().permitAll()
                 )
 
-                // Stateless session management (JWT-based)
+
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
 
-                // Authentication provider
+
                 .authenticationProvider(authenticationProvider())
 
-                // JWT Filter
+                //jwtfilter
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

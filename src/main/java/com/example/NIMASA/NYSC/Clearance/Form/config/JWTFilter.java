@@ -32,41 +32,39 @@ public class JWTFilter extends OncePerRequestFilter {
         String accessToken = null;
         String username = null;
 
-        // ONLY look for access tokens (not refresh tokens)
-        // Priority: Authorization header first, then cookie
+        // Here i am looking for access tokens
+        // Priority: Authorization header first then cookie
         String authHeader = request.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             accessToken = authHeader.substring(7);
         } else {
-            // Check for access token in cookie
+            // Checking for access token in cookie
             accessToken = extractAccessTokenFromCookie(request);
         }
 
-        // Extract username and validate token type
+        // here i am trying to extract username and validate token type
         if (accessToken != null) {
             try {
                 username = jwtService.extractUsername(accessToken);
-
-                // CRITICAL: Verify this is an access token, not a refresh token
+                // this is to verify this is my access token not refresh
                 String tokenType = jwtService.extractTokenType(accessToken);
+
                 if (!"access".equals(tokenType)) {
                     // Someone is trying to use a refresh token as an access token
                     setErrorResponse(response, "Invalid token type");
                     return;
                 }
             } catch (Exception e) {
-                // Token is malformed or expired
-                // Don't set error here - just continue without authentication
-                // Frontend will handle 401 and refresh token automatically
+                // Token is expired
+                // Frontend willl handle my 401 and my refresh token automatically
             }
         }
-
-        // Authenticate if we have a valid username and no existing authentication
+        // Authenticate if we have a valid usernamw and no existing authentication
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 UserDetails userDetails = context.getBean(CustomUserDetailsService.class).loadUserByUsername(username);
 
-                // Validate access token specifically
+                // Validating my  access token
                 if (jwtService.validateAccessToken(accessToken, userDetails)) {
                     UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities());
@@ -74,17 +72,16 @@ public class JWTFilter extends OncePerRequestFilter {
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 }
             } catch (Exception e) {
-                // User not found or other authentication error
-                // Continue without setting authentication
+
             }
         }
 
         filterChain.doFilter(request, response);
     }
 
-    /**
-     * Extract access token from cookies
-     */
+//    =========================================================================
+//     CLASS TO EXTRACTING MY TOKEN FROM COOKIES
+//     =========================================================================
     private String extractAccessTokenFromCookie(HttpServletRequest request) {
         Cookie[] cookies = request.getCookies();
         if (cookies != null) {

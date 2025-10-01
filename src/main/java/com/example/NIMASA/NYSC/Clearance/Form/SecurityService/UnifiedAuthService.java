@@ -160,6 +160,8 @@ public class UnifiedAuthService {
         }
 
         // All good → reset limiter + issue tokens
+        System.out.println("Password length: " + request.getPassword().length());
+
         rateLimitService.recordSuccessfulLogin(clientIp);
         return createEmployeeSuccessResponse(employee, httpRequest, response);
     }
@@ -197,8 +199,8 @@ public class UnifiedAuthService {
      * Useful for dashboards showing "current user".
      */
     public CurrentUserResponseDTO getCurrentUser(HttpServletRequest request, String username) {
-        // First check employee
-        Optional<Employee> employeeOpt = employeeRepository.findByNameAndActive(username, true);
+        // 👇 Find by USERNAME
+        Optional<Employee> employeeOpt = employeeRepository.findByUsernameIgnoreCaseAndActive(username, true);
 
         if (employeeOpt.isPresent()) {
             Employee employee = employeeOpt.get();
@@ -214,16 +216,14 @@ public class UnifiedAuthService {
             response.setCreatedAT(employee.getCreatedAt());
             response.setLastPasswordChange(employee.getLastPasswordChange());
 
-            // Expired password?
             response.setPasswordExpired(employee.getLastPasswordChange().isBefore(LocalDate.now().minusMonths(3)));
 
-            // Token + session info
             if (accessToken != null) {
                 long remainingMinutes = jwtService.getTokenRemainingTimeMinutes(accessToken);
                 response.setAccessTokenRemainingMinutes(remainingMinutes);
             }
             response.setRefreshTokenExpirationMs(jwtService.getRefreshTokenExpirationMs());
-            response.setActiveSessionCount(refreshTokenService.getActiveSessionCount(employee.getName()));
+            response.setActiveSessionCount(refreshTokenService.getActiveSessionCount(username));
             response.setAuthenticated(true);
 
             return response;
@@ -245,8 +245,8 @@ public class UnifiedAuthService {
                 response.setCreatedAT(corpsMember.getCreatedAt());
                 response.setAuthenticated(true);
 
-                response.setPasswordExpired(false); // corps never expire
-                response.setActiveSessionCount(0);  // corps have no sessions
+                response.setPasswordExpired(false);
+                response.setActiveSessionCount(0);
 
                 return response;
             }
@@ -269,8 +269,9 @@ public class UnifiedAuthService {
         if (refreshToken != null) {
             try {
                 if (logoutAllDevices) {
-                    String employeeName = jwtService.extractUsername(refreshToken);
-                    sessionsTerminated = refreshTokenService.revokeAllTokensForEmployee(employeeName);
+                    // 👇 Extract username from JWT
+                    String username = jwtService.extractUsername(refreshToken);
+                    sessionsTerminated = refreshTokenService.revokeAllTokensForEmployee(username);
                 } else {
                     sessionsTerminated = refreshTokenService.revokeSingleSession(refreshToken);
                 }
@@ -289,27 +290,43 @@ public class UnifiedAuthService {
      */
     public RefreshTokenResponseDTO refreshAccessToken(HttpServletRequest request, HttpServletResponse response) {
         String refreshToken = extractRefreshTokenFromCookie(request);
-        if (refreshToken == null) throw new RuntimeException("Refresh token not found");
 
-        Optional<String> employeeNameOpt = refreshTokenService.validateRefreshToken(refreshToken);
+        System.out.println("🔄 Refresh token request received");
 
-        if (employeeNameOpt.isEmpty()) throw new RuntimeException("Invalid refresh token");
+        if (refreshToken == null) {
+            System.out.println("No refresh token found in cookie");
+            throw new RuntimeException("Refresh token not found");
+        }
 
-        String employeeName = employeeNameOpt.get();
-        Employee employee = employeeRepository.findByNameAndActive(employeeName, true)
+        System.out.println("✅ Refresh token found in cookie");
+
+        Optional<String> usernameOpt = refreshTokenService.validateRefreshToken(refreshToken);
+
+        if (usernameOpt.isEmpty()) {
+            System.out.println(" Refresh token validation failed");
+            throw new RuntimeException("Invalid refresh token");
+        }
+
+        // 👇 This is now username (e.g., "Initial.Admin")
+        String username = usernameOpt.get();
+        System.out.println(" Token validated for username: " + username);
+
+        // 👇 Find by USERNAME, not name
+        Employee employee = employeeRepository.findByUsernameIgnoreCaseAndActive(username, true)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 
         String deviceInfo = extractDeviceInfo(request);
-        RefreshToken newRefreshToken = refreshTokenService.rotateRefreshToken(refreshToken, deviceInfo);
-        String newAccessToken = jwtService.generateAccessToken(employeeName);
+        String newRefreshTokenJwt = refreshTokenService.rotateRefreshToken(refreshToken, deviceInfo);
+        String newAccessToken = jwtService.generateAccessToken(username);
 
         setAccessTokenCookie(response, newAccessToken);
-        setRefreshTokenCookie(response, generateTokenForCookie(newRefreshToken));
+        setRefreshTokenCookie(response, newRefreshTokenJwt);
 
+        System.out.println(" Tokens refreshed successfully");
         return new RefreshTokenResponseDTO(
                 "Token refreshed successfully",
                 jwtService.getAccessTokenExpirationMs(),
-                employeeName,
+                username,
                 employee.getRole()
         );
     }
@@ -531,9 +548,11 @@ public class UnifiedAuthService {
         response.addCookie(refreshCookie);
     }
 
-    private String generateTokenForCookie(RefreshToken refreshToken) {
-        return jwtService.generateRefreshToken(refreshToken.getEmployeeName(), refreshToken.getTokenFamily());
-    }
+//    private String generateTokenForCookie(RefreshToken refreshToken) {
+//        return jwtService.generateRefreshToken(
+//                refreshToken.getEmployeeName(),
+//                refreshToken.getTokenFamily());
+//    }
 
     private String extractAccessTokenFromCookie(HttpServletRequest request) {
         if (request.getCookies() == null) return null;
@@ -579,21 +598,15 @@ public class UnifiedAuthService {
         String tokenFamily = jwtService.generateTokenFamily();
         String deviceInfo = extractDeviceInfo(request);
 
-        CompletableFuture<String> accessTokenFuture =
-                CompletableFuture.supplyAsync(() -> jwtService.generateAccessToken(employee.getName()));
-
-        CompletableFuture<RefreshToken> refreshTokenFuture =
-                CompletableFuture.supplyAsync(() -> refreshTokenService.createRefreshToken(employee.getName(), tokenFamily, deviceInfo));
-
-        String accessToken = accessTokenFuture.join();
-        RefreshToken refreshToken = refreshTokenFuture.join();
+        // 👇 USE USERNAME (not name) for tokens
+        String accessToken = jwtService.generateAccessToken(employee.getUsername());
+        String refreshTokenJwt = refreshTokenService.createRefreshToken(employee.getUsername(), tokenFamily, deviceInfo);
 
         setAccessTokenCookie(response, accessToken);
-        setRefreshTokenCookie(response, generateTokenForCookie(refreshToken));
+        setRefreshTokenCookie(response, refreshTokenJwt);
 
         AuthResponseDTO authResponse = new AuthResponseDTO();
         authResponse.setId(employee.getId());
-//        authResponse.setUsername(employee.getUsername());
         authResponse.setMessage("Employee authentication successful");
         authResponse.setName(employee.getName());
         authResponse.setDepartment(employee.getDepartment());

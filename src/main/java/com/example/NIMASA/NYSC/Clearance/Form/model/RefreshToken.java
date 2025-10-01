@@ -23,6 +23,8 @@ public class RefreshToken {
     @Column(nullable = false, unique = true, length = 500)
     private String token; // The actual refresh token (hashed)
 
+    private String rawToken;
+
     @Column(nullable = false)
     private String employeeName; // Which employee this belongs to
 

@@ -17,19 +17,15 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Service
 public class CustomUserDetailsService implements UserDetailsService {
-//    private final AdminRepo adminRepo;
+
     private final EmployeeRepository employeeRepository;
 
-   @Override
- public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        // 👇 CHANGED: Now looks up by username (e.g., "Initial.Admin")
+        Employee employee = employeeRepository.findByUsernameIgnoreCaseAndActive(username, true)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
 
-
-        // Then check if it's an employee (using name as username)
-        Optional<Employee> employeeOpt = employeeRepository.findByNameAndActive(username, true);
-        if (employeeOpt.isPresent()) {
-            return new EmployeePrincipal(employeeOpt.get());
-        }
-
-        throw new UsernameNotFoundException("User not found: " + username);
+        return new EmployeePrincipal(employee);
     }
 }

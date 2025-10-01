@@ -25,7 +25,7 @@ public class EmployeePrincipal implements UserDetails {
 
     @Override
     public String getUsername() {
-        return employee.getName();
+        return employee.getUsername();
     }
 
     @Override
