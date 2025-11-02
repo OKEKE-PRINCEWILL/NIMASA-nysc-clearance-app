@@ -15,19 +15,21 @@ public class CorsConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Your specific allowed origins
+        // Your specific allowed origins (FIXED - removed spaces and corrected nysc-clearance.local)
         configuration.setAllowedOriginPatterns(Arrays.asList(
                 "http://localhost:3000",
+                "http://localhost:8080",
+                "http://localhost:3030",
+                "http://nysc-clearance.local",
                 "https://nimasa-nysc-clearance-app1.onrender.com",
                 "https://nimasa-nysc-clearance-portal.vercel.app",
-                "http://192.168.103.104:8080/nysc",
-                "http://localhost:8080/nysc"
-
+                "http://192.168.103.104:8080",
+                "http://172.16.125.148:3000"
         ));
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
-        configuration.setAllowCredentials(true); // Enable credentials for cookies
+        configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

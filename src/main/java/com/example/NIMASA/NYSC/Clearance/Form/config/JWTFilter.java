@@ -55,8 +55,9 @@ public class JWTFilter extends OncePerRequestFilter {
                     return;
                 }
             } catch (Exception e) {
+
                 // Token is expired
-                // Frontend willl handle my 401 and my refresh token automatically
+                // Frontend will handle my 401 and my refresh token automatically
             }
         }
         // Authenticate if we have a valid usernamw and no existing authentication

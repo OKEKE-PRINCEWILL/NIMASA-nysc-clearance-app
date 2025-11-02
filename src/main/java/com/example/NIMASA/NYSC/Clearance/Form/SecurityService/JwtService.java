@@ -44,7 +44,7 @@ public class JwtService {
     }
 
     /**
-     * Generate short-lived access token (15 minutes)
+     * Generate access token
      * Used for API authentication
      */
     public String generateAccessToken(String username){
@@ -89,15 +89,6 @@ public class JwtService {
         return UUID.randomUUID().toString();
     }
 
-    /**
-     * Generate secure random refresh token for database storage
-     */
-//    public String generateSecureRandomToken() {
-//        SecureRandom secureRandom = new SecureRandom();
-//        byte[] randomBytes = new byte[32]; // 256 bits
-//        secureRandom.nextBytes(randomBytes);
-//        return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
-//    }
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);

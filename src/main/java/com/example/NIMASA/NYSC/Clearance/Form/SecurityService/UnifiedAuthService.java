@@ -61,10 +61,10 @@ public class UnifiedAuthService {
     private String sameSite;
 
     // ========== CACHING ==========
-    // We keep a 5-minute cache of recently authenticated employees
+    // We keep a 1.5-minute cache of recently authenticated employees
     // This avoids hitting the DB on every single login attempt.
     private final Map<String, CachedEmployeeData> quickCache = new ConcurrentHashMap<>();
-    private static final long CACHE_DURATION_MS = 300000; // 5 minutes
+    private static final long CACHE_DURATION_MS = 90000; // 1.5 minutes
 
     /**
      * Tiny class to wrap cached employee data.
@@ -105,7 +105,7 @@ public class UnifiedAuthService {
         }
 
         try {
-            // Step 1: try cache
+
             String cacheKey = request.getName().toLowerCase().trim();
             CachedEmployeeData cached = quickCache.get(cacheKey);
 
@@ -113,7 +113,7 @@ public class UnifiedAuthService {
                 return authenticateFromCache(cached.employee, request, httpRequest, response, clientIp);
             }
 
-            // Step 2: query DB for employee
+            //query DB for employee
             // NEW employee lookup (by username)
             CompletableFuture<Optional<Employee>> employeeQuery =
                     CompletableFuture.supplyAsync(() -> employeeRepository.findByUsernameIgnoreCaseAndActive(request.getName(), true));
@@ -125,7 +125,7 @@ public class UnifiedAuthService {
                 quickCache.put(cacheKey, new CachedEmployeeData(employee));
                 return authenticateFromCache(employee, request, httpRequest, response, clientIp);
             } else {
-                // Step 3: fallback → corps member login
+                //fallback → corps member login
                 return handleCorpsMember(request);
             }
 
@@ -155,7 +155,7 @@ public class UnifiedAuthService {
         }
 
         // Force password change every 3 months
-        if (employee.getLastPasswordChange().isBefore(LocalDate.now().minusMonths(3))) {
+        if (employee.getLastPasswordChange().isBefore(LocalDate.now().minusMonths(5))) {
             throw new RuntimeException("Password has expired. Please change your password.");
         }
 
@@ -480,7 +480,7 @@ public class UnifiedAuthService {
 
         Employee admin = new Employee();
         admin.setName("Initial Admin");  // full name for UI
-        admin.setUsername("Initial.Admin");      // 👈 set username for login
+        admin.setUsername("Initial.Admin");
         admin.setPassword(encoder.encode("admin123"));
         admin.setDepartment("Administration");
         admin.setRole(UserRole.ADMIN);
